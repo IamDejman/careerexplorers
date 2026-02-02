@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import JobForm from '@/components/JobForm';
+import PostTabs from '@/components/PostTabs';
 
 export default function Home() {
   return (
@@ -20,7 +20,7 @@ export default function Home() {
                 Career Explorer
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 truncate">
-                Post jobs to X and Telegram
+                Post to X and Telegram
               </p>
             </div>
           </div>
@@ -29,7 +29,7 @@ export default function Home() {
 
       {/* Main Content - Mobile optimized padding */}
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        <JobForm />
+        <PostTabs />
       </div>
 
       {/* Footer */}
