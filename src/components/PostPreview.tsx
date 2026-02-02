@@ -1,0 +1,92 @@
+'use client';
+
+import { JobData, formatTwitterMessage, formatTelegramMessage, splitIntoThread } from '@/lib/utils';
+
+interface PostPreviewProps {
+  job: JobData;
+}
+
+export default function PostPreview({ job }: PostPreviewProps) {
+  const twitterMessage = formatTwitterMessage(job);
+  const telegramMessage = formatTelegramMessage(job);
+  const twitterThread = splitIntoThread(twitterMessage);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Twitter/X Preview */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-black px-4 py-3 flex items-center gap-2">
+          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          <span className="text-white font-medium">X Preview</span>
+          {twitterThread.length > 1 && (
+            <span className="ml-auto text-gray-400 text-sm">
+              Thread ({twitterThread.length} tweets)
+            </span>
+          )}
+        </div>
+        <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+          {twitterThread.map((tweet, index) => (
+            <div
+              key={index}
+              className={`${
+                index > 0 ? 'border-t border-gray-100 pt-4' : ''
+              }`}
+            >
+              <div className="flex gap-3">
+                <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-gray-900">Your Name</span>
+                    <span className="text-gray-500">@yourhandle</span>
+                  </div>
+                  <p className="text-gray-900 whitespace-pre-wrap break-words mt-1">
+                    {tweet}
+                  </p>
+                  {index === 0 && job.image && (
+                    <img
+                      src={job.image}
+                      alt="Preview"
+                      className="mt-3 rounded-xl max-h-48 object-cover"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Telegram Preview */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-[#2AABEE] px-4 py-3 flex items-center gap-2">
+          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+          </svg>
+          <span className="text-white font-medium">Telegram Preview</span>
+        </div>
+        <div className="p-4 bg-[#E5DDD5]">
+          <div className="bg-white rounded-lg p-3 shadow-sm max-w-sm">
+            {job.image && (
+              <img
+                src={job.image}
+                alt="Preview"
+                className="w-full h-32 object-cover rounded-lg mb-2"
+              />
+            )}
+            <div
+              className="text-sm text-gray-900 whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{
+                __html: telegramMessage
+                  .replace(/<b>/g, '<strong>')
+                  .replace(/<\/b>/g, '</strong>')
+                  .replace(/<a href="([^"]+)">([^<]+)<\/a>/g, '<a href="$1" class="text-blue-600 underline">$2</a>'),
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
