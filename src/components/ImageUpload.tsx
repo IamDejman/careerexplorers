@@ -76,15 +76,15 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
         <img
           src={currentImage}
           alt="Upload preview"
-          className="w-full h-48 object-cover rounded-lg"
+          className="w-full h-40 sm:h-48 object-cover rounded-lg"
         />
         <button
           type="button"
           onClick={handleRemove}
-          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+          className="absolute top-2 right-2 p-1.5 sm:p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors active:scale-95"
         >
           <svg
-            className="w-5 h-5"
+            className="w-4 h-4 sm:w-5 sm:h-5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -106,10 +106,10 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
-      className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer ${
         isDragging
           ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-gray-400'
+          : 'border-gray-300 hover:border-gray-400 active:border-blue-400'
       }`}
     >
       <input
@@ -121,7 +121,7 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
       />
       <label htmlFor="image-upload" className="cursor-pointer">
         <svg
-          className="mx-auto h-12 w-12 text-gray-400"
+          className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400"
           stroke="currentColor"
           fill="none"
           viewBox="0 0 48 48"
@@ -135,9 +135,9 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
         </svg>
         <p className="mt-2 text-sm text-gray-600">
           <span className="font-medium text-blue-600 hover:text-blue-500">
-            Click to upload
+            Tap to upload
           </span>{' '}
-          or drag and drop
+          <span className="hidden sm:inline">or drag and drop</span>
         </p>
         <p className="mt-1 text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
       </label>

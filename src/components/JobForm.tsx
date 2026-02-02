@@ -103,14 +103,15 @@ export default function JobForm() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Form */}
-      <form className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
+      <form className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">
           Create Job Post
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Form fields - stack on mobile, 2 cols on tablet+ */}
+        <div className="space-y-4 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 lg:gap-6">
           {/* Job Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -121,7 +122,7 @@ export default function JobForm() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Senior Software Engineer"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -136,7 +137,7 @@ export default function JobForm() {
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder="e.g., TechCorp Inc."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -151,7 +152,7 @@ export default function JobForm() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g., Remote, New York, NY"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -164,7 +165,7 @@ export default function JobForm() {
             <select
               value={jobType}
               onChange={(e) => setJobType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
               <option>Full-time</option>
               <option>Part-time</option>
@@ -175,8 +176,8 @@ export default function JobForm() {
           </div>
         </div>
 
-        {/* Description */}
-        <div className="mt-6">
+        {/* Description - Full width */}
+        <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Description *
           </label>
@@ -185,7 +186,7 @@ export default function JobForm() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the role, requirements, and what makes it exciting..."
             rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             required
           />
           <div className="mt-2">
@@ -198,7 +199,7 @@ export default function JobForm() {
         </div>
 
         {/* Apply Link */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Apply Link *
           </label>
@@ -207,13 +208,13 @@ export default function JobForm() {
             value={applyLink}
             onChange={(e) => setApplyLink(e.target.value)}
             placeholder="https://yourcompany.com/careers/job-id"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           />
         </div>
 
         {/* Hashtags */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Hashtags
           </label>
@@ -221,15 +222,15 @@ export default function JobForm() {
             type="text"
             value={hashtagInput}
             onChange={(e) => setHashtagInput(e.target.value)}
-            placeholder="hiring, remotejobs, tech (comma or space separated)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="hiring, remotejobs, tech"
+            className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {hashtags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {hashtags.map((tag, i) => (
                 <span
                   key={i}
-                  className="px-2 py-1 bg-blue-100 text-blue-700 text-sm rounded-full"
+                  className="px-2 py-1 bg-blue-100 text-blue-700 text-xs sm:text-sm rounded-full"
                 >
                   #{tag}
                 </span>
@@ -239,20 +240,20 @@ export default function JobForm() {
         </div>
 
         {/* Image Upload */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Image (Optional)
           </label>
           <ImageUpload onImageChange={setImage} currentImage={image} />
         </div>
 
-        {/* Submit Buttons */}
-        <div className="mt-8 flex flex-wrap gap-3">
+        {/* Submit Buttons - Stack on mobile */}
+        <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={(e) => handleSubmit(e, ['twitter', 'telegram'])}
             disabled={isPosting}
-            className="flex-1 min-w-[200px] px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full sm:flex-1 px-6 py-4 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-xl sm:rounded-lg hover:from-blue-700 hover:to-purple-700 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
           >
             {isPosting ? (
               <span className="flex items-center justify-center gap-2">
@@ -278,27 +279,29 @@ export default function JobForm() {
               'Post to Both'
             )}
           </button>
-          <button
-            type="button"
-            onClick={(e) => handleSubmit(e, ['twitter'])}
-            disabled={isPosting}
-            className="px-6 py-3 bg-black text-white font-medium rounded-lg hover:bg-gray-800 focus:ring-4 focus:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            Post to X
-          </button>
-          <button
-            type="button"
-            onClick={(e) => handleSubmit(e, ['telegram'])}
-            disabled={isPosting}
-            className="px-6 py-3 bg-[#2AABEE] text-white font-medium rounded-lg hover:bg-[#229ED9] focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            Post to Telegram
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e, ['twitter'])}
+              disabled={isPosting}
+              className="flex-1 sm:flex-none px-6 py-4 sm:py-3 bg-black text-white font-medium rounded-xl sm:rounded-lg hover:bg-gray-800 focus:ring-4 focus:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            >
+              Post to X
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e, ['telegram'])}
+              disabled={isPosting}
+              className="flex-1 sm:flex-none px-6 py-4 sm:py-3 bg-[#2AABEE] text-white font-medium rounded-xl sm:rounded-lg hover:bg-[#229ED9] focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            >
+              Telegram
+            </button>
+          </div>
         </div>
 
         {/* Result/Error Messages */}
         {error && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="mt-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             <strong>Error:</strong> {error}
           </div>
         )}
@@ -307,7 +310,7 @@ export default function JobForm() {
           <div className="mt-4 space-y-2">
             {result.twitter && (
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 sm:p-4 rounded-lg text-sm ${
                   result.twitter.success
                     ? 'bg-green-50 border border-green-200 text-green-700'
                     : 'bg-red-50 border border-red-200 text-red-700'
@@ -336,7 +339,7 @@ export default function JobForm() {
             )}
             {result.telegram && (
               <div
-                className={`p-4 rounded-lg ${
+                className={`p-3 sm:p-4 rounded-lg text-sm ${
                   result.telegram.success
                     ? 'bg-green-50 border border-green-200 text-green-700'
                     : 'bg-red-50 border border-red-200 text-red-700'
@@ -354,7 +357,7 @@ export default function JobForm() {
 
       {/* Preview */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Preview</h2>
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Preview</h2>
         <PostPreview job={jobData} />
       </div>
     </div>

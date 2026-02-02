@@ -31,9 +31,9 @@ export default function CharacterCounter({
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
       {/* Progress bar */}
-      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="flex-1 min-w-[100px] h-1.5 sm:h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ${getProgressColor()}`}
           style={{ width: `${percentage}%` }}
@@ -41,7 +41,7 @@ export default function CharacterCounter({
       </div>
 
       {/* Character count */}
-      <div className={`text-sm font-medium ${getColorClass()}`}>
+      <div className={`text-xs sm:text-sm font-medium ${getColorClass()}`}>
         {count > X_CHAR_LIMIT ? (
           <span>
             {count}/{X_CHAR_LIMIT}
@@ -53,9 +53,9 @@ export default function CharacterCounter({
 
       {/* Thread indicator */}
       {needsThread && (
-        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+        <div className="flex items-center gap-1 px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-medium">
           <svg
-            className="w-3 h-3"
+            className="w-2.5 h-2.5 sm:w-3 sm:h-3"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
