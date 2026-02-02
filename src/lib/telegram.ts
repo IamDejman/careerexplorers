@@ -4,10 +4,15 @@
 
 import axios from 'axios';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID!;
-
-const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+/**
+ * Get Telegram config - lazy initialization to avoid build-time errors
+ */
+function getTelegramConfig() {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN!;
+  const channelId = process.env.TELEGRAM_CHANNEL_ID!;
+  const apiUrl = `https://api.telegram.org/bot${botToken}`;
+  return { botToken, channelId, apiUrl };
+}
 
 export interface TelegramPostResult {
   success: boolean;
@@ -43,8 +48,10 @@ export async function postToTelegram(
  * Post text message to Telegram
  */
 async function postTextToTelegram(message: string): Promise<TelegramPostResult> {
-  const response = await axios.post(`${TELEGRAM_API}/sendMessage`, {
-    chat_id: CHANNEL_ID,
+  const { channelId, apiUrl } = getTelegramConfig();
+
+  const response = await axios.post(`${apiUrl}/sendMessage`, {
+    chat_id: channelId,
     text: message,
     parse_mode: 'HTML',
     disable_web_page_preview: false,
@@ -70,6 +77,8 @@ async function postPhotoToTelegram(
   caption: string,
   imageBase64: string
 ): Promise<TelegramPostResult> {
+  const { channelId, apiUrl } = getTelegramConfig();
+
   // Remove data URL prefix if present
   const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(base64Data, 'base64');
@@ -77,12 +86,12 @@ async function postPhotoToTelegram(
   // Create form data
   const FormData = (await import('form-data')).default;
   const form = new FormData();
-  form.append('chat_id', CHANNEL_ID);
+  form.append('chat_id', channelId);
   form.append('photo', buffer, { filename: 'image.png', contentType: 'image/png' });
   form.append('caption', caption);
   form.append('parse_mode', 'HTML');
 
-  const response = await axios.post(`${TELEGRAM_API}/sendPhoto`, form, {
+  const response = await axios.post(`${apiUrl}/sendPhoto`, form, {
     headers: form.getHeaders(),
   });
 

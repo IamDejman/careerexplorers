@@ -5,12 +5,17 @@
 import { TwitterApi, SendTweetV2Params } from 'twitter-api-v2';
 import { splitIntoThread, X_CHAR_LIMIT } from './utils';
 
-const client = new TwitterApi({
-  appKey: process.env.TWITTER_API_KEY!,
-  appSecret: process.env.TWITTER_API_SECRET!,
-  accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-  accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET!,
-});
+/**
+ * Get Twitter client - lazy initialization to avoid build-time errors
+ */
+function getTwitterClient() {
+  return new TwitterApi({
+    appKey: process.env.TWITTER_API_KEY!,
+    appSecret: process.env.TWITTER_API_SECRET!,
+    accessToken: process.env.TWITTER_ACCESS_TOKEN!,
+    accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET!,
+  });
+}
 
 export interface TwitterPostResult {
   success: boolean;
@@ -26,6 +31,8 @@ export async function postToTwitter(
   imageBase64?: string
 ): Promise<TwitterPostResult> {
   try {
+    // Create client at runtime, not build time
+    const client = getTwitterClient();
     const rwClient = client.readWrite;
 
     // Check if we need to create a thread
