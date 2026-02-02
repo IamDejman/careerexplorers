@@ -216,7 +216,7 @@ export default function JobForm() {
         {/* Hashtags */}
         <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Hashtags
+            Hashtags (Optional)
           </label>
           <input
             type="text"
