@@ -27,9 +27,10 @@ export async function POST(request: NextRequest) {
       telegram?: { success: boolean; error?: string };
     } = {};
 
-    // Post to Twitter/X
+    // Post to Twitter/X (always add hashtags for Twitter)
     if (platforms.includes('twitter')) {
-      const twitterResult = await postToTwitter(message, image);
+      const twitterMessage = `${message.trim()} #hiring #jobs #jobopening`;
+      const twitterResult = await postToTwitter(twitterMessage, image);
       results.twitter = {
         success: twitterResult.success,
         tweetUrls: twitterResult.tweetIds?.map(getTweetUrl),

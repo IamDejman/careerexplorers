@@ -478,6 +478,127 @@ export function getCharacterStatus(text: string): {
   };
 }
 
+// ============================================
+// CONCISE FORMATTERS FOR AUTOMATED POSTING
+// ============================================
+
+export interface ConciseJobData {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  jobType: string;
+  description: string;
+  applyUrl: string;
+  sourceUrl: string;
+}
+
+/**
+ * Generate hashtags for a scraped job
+ */
+export function generateJobHashtags(job: ConciseJobData): string[] {
+  const tags: string[] = ['NigeriaJobs', 'Hiring'];
+
+  // Location-based hashtags
+  const locationLower = job.location.toLowerCase();
+  if (locationLower.includes('lagos')) tags.push('Lagos');
+  if (locationLower.includes('abuja')) tags.push('Abuja');
+  if (locationLower.includes('port harcourt')) tags.push('PortHarcourt');
+  if (locationLower.includes('remote')) tags.push('RemoteJobs');
+
+  // Job type hashtags
+  const typeLower = job.jobType.toLowerCase();
+  if (typeLower.includes('full')) tags.push('FullTime');
+  if (typeLower.includes('part')) tags.push('PartTime');
+  if (typeLower.includes('intern')) tags.push('Internship');
+  if (typeLower.includes('contract')) tags.push('Contract');
+
+  // Title-based hashtags
+  const titleLower = job.title.toLowerCase();
+  if (/engineer|developer|programmer|software/i.test(titleLower)) tags.push('TechJobs');
+  if (/manager|management/i.test(titleLower)) tags.push('Management');
+  if (/sales|business\s+development/i.test(titleLower)) tags.push('Sales');
+  if (/marketing|brand/i.test(titleLower)) tags.push('Marketing');
+  if (/finance|accountant|accounting/i.test(titleLower)) tags.push('Finance');
+  if (/hr|human\s+resource/i.test(titleLower)) tags.push('HR');
+  if (/design|creative/i.test(titleLower)) tags.push('Design');
+  if (/data|analyst/i.test(titleLower)) tags.push('DataJobs');
+
+  // Limit to 5 hashtags max
+  return tags.slice(0, 5);
+}
+
+/**
+ * Format a scraped job for Twitter (concise format)
+ * Designed for automated posting - short and punchy
+ */
+export function formatConciseTwitterJob(job: ConciseJobData): string {
+  const hashtags = generateJobHashtags(job);
+  const hashtagStr = hashtags.map(t => `#${t}`).join(' ');
+
+  // Build concise message
+  const lines: string[] = [];
+
+  // Header line
+  lines.push(`🚀 ${job.title} at ${job.company}`);
+  lines.push('');
+
+  // Meta line
+  const meta = [job.location, job.jobType].filter(Boolean).join(' | ');
+  if (meta) {
+    lines.push(`📍 ${meta}`);
+    lines.push('');
+  }
+
+  // Apply link
+  lines.push(`Apply: ${job.applyUrl}`);
+  lines.push('');
+
+  // Hashtags
+  lines.push(hashtagStr);
+
+  return lines.join('\n');
+}
+
+/**
+ * Format a scraped job for Telegram (concise HTML format)
+ * Designed for automated posting - clean and readable
+ */
+export function formatConciseTelegramJob(job: ConciseJobData): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`<b>🚀 ${escapeHtml(job.title)}</b>`);
+  lines.push(`🏢 ${escapeHtml(job.company)}`);
+
+  // Meta
+  const meta = [job.location, job.jobType].filter(Boolean).join(' | ');
+  if (meta) {
+    lines.push(`📍 ${escapeHtml(meta)}`);
+  }
+
+  lines.push('');
+
+  // Apply link
+  lines.push(`<a href="${job.applyUrl}">Apply Now →</a>`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Escape HTML special characters for Telegram
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ============================================
+// EXISTING VALIDATION
+// ============================================
+
 /**
  * Validate job data
  */
