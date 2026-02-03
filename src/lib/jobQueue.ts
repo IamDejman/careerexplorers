@@ -178,6 +178,18 @@ export async function getJob(jobId: string): Promise<ScrapedJob | null> {
 }
 
 /**
+ * Clear today's pending queue. Removes all jobs from the pending set.
+ * Job data keys (job:xxx) remain until TTL expires (7 days).
+ */
+export async function clearPendingQueue(): Promise<number> {
+  const today = getTodayDate();
+  const pendingKey = KEYS.TODAY_PENDING(today);
+  const count = await redis.scard(pendingKey);
+  await redis.del(pendingKey);
+  return count;
+}
+
+/**
  * Clear old data (run manually if needed)
  */
 export async function clearOldData(daysOld: number = 30): Promise<void> {

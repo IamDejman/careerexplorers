@@ -119,6 +119,36 @@ export default function DashboardPage() {
     }
   };
 
+  const handleClearPending = async () => {
+    const count = data?.stats.pendingToday || 0;
+    if (count === 0) return;
+    if (!confirm(`Clear all ${count} pending job(s)? This cannot be undone.`)) return;
+
+    setActionLoading('clear');
+    setActionResult(null);
+    try {
+      const response = await fetch('/api/queue/clear', { method: 'POST' });
+      const result = await response.json();
+
+      if (result.success) {
+        setActionResult({
+          type: 'success',
+          message: result.message,
+        });
+        fetchData();
+      } else {
+        throw new Error(result.error || 'Clear failed');
+      }
+    } catch (err) {
+      setActionResult({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString('en-US', {
@@ -254,6 +284,20 @@ export default function DashboardPage() {
               </>
             ) : (
               <>Post Now (2 Jobs)</>
+            )}
+          </button>
+          <button
+            onClick={handleClearPending}
+            disabled={actionLoading !== null || (data?.stats.pendingToday || 0) === 0}
+            className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {actionLoading === 'clear' ? (
+              <>
+                <span className="animate-spin">&#8635;</span>
+                Clearing...
+              </>
+            ) : (
+              <>Clear Pending</>
             )}
           </button>
           <button
