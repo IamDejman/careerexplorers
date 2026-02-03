@@ -4,6 +4,7 @@
  */
 export const EXCLUDED_JOB_TITLES: string[] = [
   'Driver',
+  'Cleaner',
 ];
 
 export function isJobExcluded(title: string): boolean {

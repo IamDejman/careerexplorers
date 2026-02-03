@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return handleAutoPost();
+  return handleAutoPost(request.url);
 }
 
 export async function GET(request: Request) {
@@ -78,10 +78,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return handleAutoPost();
+  return handleAutoPost(request.url);
 }
 
-async function handleAutoPost() {
+async function handleAutoPost(requestUrl: string) {
+  const dryRun = new URL(requestUrl).searchParams.get('dryRun') === 'true';
   try {
     console.log('Starting auto-post...');
 
@@ -95,6 +96,33 @@ async function handleAutoPost() {
         success: true,
         message: 'No unposted jobs available, skipping this cycle',
         posted: 0,
+        ...(dryRun && { dryRun: true, preview: [] }),
+      });
+    }
+
+    if (dryRun) {
+      const preview = postableJobs.map((job) => {
+        const conciseJob: ConciseJobData = {
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          jobType: job.jobType,
+          description: job.description,
+          applyUrl: job.applyUrl,
+          sourceUrl: job.sourceUrl,
+        };
+        return {
+          jobId: job.id,
+          title: `${job.title} at ${job.company}`,
+          twitterMessage: formatConciseTwitterJob(conciseJob),
+          telegramMessage: formatConciseTelegramJob(conciseJob),
+        };
+      });
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        preview,
       });
     }
 

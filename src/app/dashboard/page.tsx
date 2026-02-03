@@ -26,6 +26,13 @@ interface HistoryEntry {
   company: string;
 }
 
+interface PreviewItem {
+  jobId: string;
+  title: string;
+  twitterMessage: string;
+  telegramMessage: string;
+}
+
 interface QueueData {
   success: boolean;
   stats: QueueStats;
@@ -46,6 +53,9 @@ export default function DashboardPage() {
   const [actionResult, setActionResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [pendingPage, setPendingPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewItem[] | null>(null);
 
   const fetchData = useCallback(async (overrides?: { pendingPage?: number; historyPage?: number }) => {
     try {
@@ -130,6 +140,26 @@ export default function DashboardPage() {
       });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handlePreview = async () => {
+    setPreviewLoading(true);
+    setPreviewData(null);
+    setPreviewOpen(true);
+    try {
+      const response = await fetch('/api/auto-post?dryRun=true');
+      const result = await response.json();
+
+      if (result.success && result.dryRun) {
+        setPreviewData(result.preview || []);
+      } else {
+        setPreviewData([]);
+      }
+    } catch {
+      setPreviewData([]);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -298,6 +328,20 @@ export default function DashboardPage() {
               </>
             ) : (
               <>Post Now (2 Jobs)</>
+            )}
+          </button>
+          <button
+            onClick={handlePreview}
+            disabled={actionLoading !== null || previewLoading || (data?.stats.pendingToday || 0) === 0}
+            className="px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {previewLoading ? (
+              <>
+                <span className="animate-spin">&#8635;</span>
+                Previewing...
+              </>
+            ) : (
+              <>Preview</>
             )}
           </button>
           <button
@@ -528,6 +572,79 @@ export default function DashboardPage() {
           <p>Scrapes every 40 min, posts every 10 min via Upstash QStash</p>
           <p className="mt-1">Last refreshed: {new Date().toLocaleTimeString()}</p>
         </div>
+
+        {/* Preview Modal */}
+        {previewOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Post Preview
+                </h2>
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                  aria-label="Close"
+                >
+                  <span className="text-xl leading-none">&times;</span>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                {previewLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <span className="animate-spin text-2xl">&#8635;</span>
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">Previewing...</span>
+                  </div>
+                ) : previewData && previewData.length > 0 ? (
+                  previewData.map((item) => (
+                    <div
+                      key={item.jobId}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                    >
+                      <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
+                        <p className="font-medium text-gray-900 dark:text-white">{item.title}</p>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                          <div className="bg-black px-4 py-2.5 flex items-center gap-2">
+                            <span className="text-white font-medium text-sm">X Preview</span>
+                          </div>
+                          <div className="p-4 max-h-64 overflow-y-auto">
+                            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words text-sm">
+                              {item.twitterMessage}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                          <div className="bg-[#2AABEE] px-4 py-2.5 flex items-center gap-2">
+                            <span className="text-white font-medium text-sm">Telegram Preview</span>
+                          </div>
+                          <div className="p-4 bg-[#E5DDD5] dark:bg-gray-700">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                              <div
+                                className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words"
+                                dangerouslySetInnerHTML={{
+                                  __html: item.telegramMessage
+                                    .replace(/<b>/g, '<strong>')
+                                    .replace(/<\/b>/g, '</strong>')
+                                    .replace(/<a href="([^"]+)">([^<]+)<\/a>/g, '<a href="$1" class="text-blue-600 dark:text-blue-400 underline">$2</a>'),
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No jobs to preview. Scrape first or jobs may be excluded.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
