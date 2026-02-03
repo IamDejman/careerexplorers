@@ -375,7 +375,7 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>Auto-posts every 30 minutes via Vercel Cron</p>
+          <p>Auto-posts every 30 minutes via Upstash QStash</p>
           <p className="mt-1">Last refreshed: {new Date().toLocaleTimeString()}</p>
         </div>
       </div>
