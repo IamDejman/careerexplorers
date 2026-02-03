@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { postToTwitter, getTweetUrl } from '@/lib/twitter';
 import { postToTelegram } from '@/lib/telegram';
+import { isJobExcluded } from '@/lib/excludedJobs';
 import {
   JobData,
   formatTwitterMessage,
@@ -48,6 +49,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<PostRespo
           success: false,
           results: {},
           errors: validation.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Reject excluded job types
+    if (isJobExcluded(job.title)) {
+      return NextResponse.json(
+        {
+          success: false,
+          results: {},
+          errors: ['This job type is excluded from posting'],
         },
         { status: 400 }
       );

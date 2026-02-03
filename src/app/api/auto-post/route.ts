@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Receiver } from '@upstash/qstash';
 import { getTodaysUnpostedJobs, markAsPosted } from '@/lib/jobQueue';
+import { isJobExcluded } from '@/lib/excludedJobs';
 import { formatConciseTwitterJob, formatConciseTelegramJob, ConciseJobData } from '@/lib/utils';
 import { postToTwitter, getTweetUrl } from '@/lib/twitter';
 import { postToTelegram } from '@/lib/telegram';
@@ -84,10 +85,11 @@ async function handleAutoPost() {
   try {
     console.log('Starting auto-post...');
 
-    // Get up to 2 unposted jobs from today's queue
-    const jobs = await getTodaysUnpostedJobs(2);
+    // Get up to 10 unposted jobs, filter excluded, then take 2 for posting
+    const jobs = await getTodaysUnpostedJobs(10);
+    const postableJobs = jobs.filter((j) => !isJobExcluded(j.title)).slice(0, 2);
 
-    if (jobs.length === 0) {
+    if (postableJobs.length === 0) {
       console.log('No unposted jobs available, skipping this cycle');
       return NextResponse.json({
         success: true,
@@ -105,7 +107,7 @@ async function handleAutoPost() {
 
     const postedJobIds: string[] = [];
 
-    for (const job of jobs) {
+    for (const job of postableJobs) {
       // Convert ScrapedJob to ConciseJobData
       const conciseJob: ConciseJobData = {
         id: job.id,
@@ -156,7 +158,7 @@ async function handleAutoPost() {
       }
 
       // Small delay between posts to avoid rate limits
-      if (jobs.indexOf(job) < jobs.length - 1) {
+      if (postableJobs.indexOf(job) < postableJobs.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
