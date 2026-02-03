@@ -30,9 +30,13 @@ interface QueueData {
   success: boolean;
   stats: QueueStats;
   pendingJobs: PendingJob[];
+  pendingTotal: number;
   recentHistory: HistoryEntry[];
+  historyTotal: number;
   error?: string;
 }
+
+const PAGE_SIZE = 10;
 
 export default function DashboardPage() {
   const [data, setData] = useState<QueueData | null>(null);
@@ -40,11 +44,19 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (overrides?: { pendingPage?: number; historyPage?: number }) => {
     try {
       setLoading(true);
-      const response = await fetch('/api/queue');
+      const params = new URLSearchParams({
+        pendingPage: String(overrides?.pendingPage ?? pendingPage),
+        pendingLimit: String(PAGE_SIZE),
+        historyPage: String(overrides?.historyPage ?? historyPage),
+        historyLimit: String(PAGE_SIZE),
+      });
+      const response = await fetch(`/api/queue?${params}`);
       const result = await response.json();
 
       if (!result.success) {
@@ -53,12 +65,14 @@ export default function DashboardPage() {
 
       setData(result);
       setError(null);
+      if (overrides?.pendingPage !== undefined) setPendingPage(overrides.pendingPage);
+      if (overrides?.historyPage !== undefined) setHistoryPage(overrides.historyPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pendingPage, historyPage]);
 
   useEffect(() => {
     fetchData();
@@ -135,7 +149,7 @@ export default function DashboardPage() {
           type: 'success',
           message: result.message,
         });
-        fetchData();
+        fetchData({ pendingPage: 1 });
       } else {
         throw new Error(result.error || 'Clear failed');
       }
@@ -159,11 +173,11 @@ export default function DashboardPage() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-8">
         <div className="max-w-6xl mx-auto">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-8"></div>
-            <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
               ))}
@@ -176,12 +190,12 @@ export default function DashboardPage() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-8">
         <div className="max-w-6xl mx-auto">
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <p className="text-red-700 dark:text-red-400">Error: {error}</p>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="mt-2 text-sm text-red-600 dark:text-red-400 underline"
             >
               Try again
@@ -257,11 +271,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-4 mb-8">
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-8">
           <button
             onClick={handleScrape}
             disabled={actionLoading !== null}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {actionLoading === 'scrape' ? (
               <>
@@ -275,7 +289,7 @@ export default function DashboardPage() {
           <button
             onClick={handlePost}
             disabled={actionLoading !== null || (data?.stats.pendingToday || 0) === 0}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {actionLoading === 'post' ? (
               <>
@@ -289,7 +303,7 @@ export default function DashboardPage() {
           <button
             onClick={handleClearPending}
             disabled={actionLoading !== null || (data?.stats.pendingToday || 0) === 0}
-            className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {actionLoading === 'clear' ? (
               <>
@@ -301,20 +315,43 @@ export default function DashboardPage() {
             )}
           </button>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             disabled={loading}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            className="px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
           >
             Refresh
           </button>
         </div>
 
         {/* Pending Jobs */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Pending Jobs ({data?.pendingJobs.length || 0})
+              Pending Jobs ({data?.pendingTotal ?? 0})
             </h2>
+            {data && data.pendingTotal > 0 && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>
+                  Page {pendingPage} of {Math.ceil(data.pendingTotal / PAGE_SIZE) || 1}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                    disabled={pendingPage <= 1}
+                    className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setPendingPage((p) => p + 1)}
+                    disabled={pendingPage >= Math.ceil(data.pendingTotal / PAGE_SIZE)}
+                    className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             {data?.pendingJobs.length === 0 ? (
@@ -322,59 +359,106 @@ export default function DashboardPage() {
                 No pending jobs. Click &quot;Scrape Now&quot; to fetch new jobs.
               </p>
             ) : (
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Job
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Location
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Scraped
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <>
+                {/* Mobile: card layout */}
+                <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
                   {data?.pendingJobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {job.title}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {job.company}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                        {job.location}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                        {job.jobType}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                        {formatTime(job.scrapedAt)}
-                      </td>
-                    </tr>
+                    <div
+                      key={job.id}
+                      className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    >
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {job.title}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {job.company}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-300">
+                        <span>{job.location}</span>
+                        <span>{job.jobType}</span>
+                        <span>{formatTime(job.scrapedAt)}</span>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                {/* Desktop: table */}
+                <table className="hidden md:table w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Job
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Location
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Type
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Scraped
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {data?.pendingJobs.map((job) => (
+                      <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {job.title}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {job.company}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {job.location}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {job.jobType}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {formatTime(job.scrapedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
         </div>
 
         {/* Recent History */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Posted Today ({data?.recentHistory.length || 0})
+              Posted Today ({data?.historyTotal ?? 0})
             </h2>
+            {data && data.historyTotal > 0 && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>
+                  Page {historyPage} of {Math.ceil(data.historyTotal / PAGE_SIZE) || 1}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={historyPage <= 1}
+                    className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setHistoryPage((p) => p + 1)}
+                    disabled={historyPage >= Math.ceil(data.historyTotal / PAGE_SIZE)}
+                    className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             {data?.recentHistory.length === 0 ? (
@@ -382,37 +466,59 @@ export default function DashboardPage() {
                 No jobs posted today yet.
               </p>
             ) : (
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Job
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Posted At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <>
+                {/* Mobile: card layout */}
+                <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
                   {data?.recentHistory.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {entry.title}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {entry.company}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                    <div
+                      key={entry.id}
+                      className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    >
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {entry.title}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {entry.company}
+                      </p>
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                         {formatTime(entry.postedAt)}
-                      </td>
-                    </tr>
+                      </p>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                {/* Desktop: table */}
+                <table className="hidden md:table w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Job
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Posted At
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {data?.recentHistory.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {entry.title}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {entry.company}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {formatTime(entry.postedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
         </div>

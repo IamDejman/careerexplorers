@@ -118,19 +118,35 @@ export async function markAsPosted(jobIds: string[]): Promise<void> {
   await redis.expire(historyKey, 60 * 60 * 24 * 30);
 }
 
+const DEFAULT_PAGE_SIZE = 10;
+
+export interface QueueStatsOptions {
+  pendingPage?: number;
+  pendingLimit?: number;
+  historyPage?: number;
+  historyLimit?: number;
+}
+
 /**
- * Get queue statistics for dashboard
+ * Get queue statistics for dashboard with pagination
  */
-export async function getQueueStats(): Promise<{
+export async function getQueueStats(opts?: QueueStatsOptions): Promise<{
   pendingToday: number;
   postedToday: number;
   totalPosted: number;
   pendingJobs: ScrapedJob[];
+  pendingTotal: number;
   recentHistory: { id: string; postedAt: string }[];
+  historyTotal: number;
 }> {
   const today = getTodayDate();
   const pendingKey = KEYS.TODAY_PENDING(today);
   const historyKey = KEYS.HISTORY(today);
+
+  const pendingPage = Math.max(1, opts?.pendingPage ?? 1);
+  const pendingLimit = Math.min(50, Math.max(5, opts?.pendingLimit ?? DEFAULT_PAGE_SIZE));
+  const historyPage = Math.max(1, opts?.historyPage ?? 1);
+  const historyLimit = Math.min(50, Math.max(5, opts?.historyLimit ?? DEFAULT_PAGE_SIZE));
 
   // Get counts
   const pendingToday = await redis.scard(pendingKey);
@@ -140,31 +156,38 @@ export async function getQueueStats(): Promise<{
   const todayHistory = await redis.hgetall<Record<string, string>>(historyKey);
   const postedToday = todayHistory ? Object.keys(todayHistory).length : 0;
 
-  // Get pending jobs
-  const pendingIds = await redis.smembers<string[]>(pendingKey);
+  // Get pending jobs (paginated)
+  const pendingIds = await redis.smembers<string[]>(pendingKey) ?? [];
+  const pendingTotal = pendingIds.length;
+  const pendingStart = (pendingPage - 1) * pendingLimit;
+  const pendingPaginatedIds = pendingIds.slice(pendingStart, pendingStart + pendingLimit);
   const pendingJobs: ScrapedJob[] = [];
 
-  if (pendingIds) {
-    for (const id of pendingIds.slice(0, 20)) { // Limit to 20 for dashboard
-      const jobData = await redis.get<string>(KEYS.JOB_DATA(id));
-      if (jobData) {
-        const job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
-        pendingJobs.push(job);
-      }
+  for (const id of pendingPaginatedIds) {
+    const jobData = await redis.get<string>(KEYS.JOB_DATA(id));
+    if (jobData) {
+      const job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
+      pendingJobs.push(job);
     }
   }
 
-  // Format history
-  const recentHistory = todayHistory
+  // Format history (paginated, newest first)
+  const historyEntries = todayHistory
     ? Object.entries(todayHistory).map(([id, postedAt]) => ({ id, postedAt }))
     : [];
+  historyEntries.sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+  const historyTotal = historyEntries.length;
+  const historyStart = (historyPage - 1) * historyLimit;
+  const recentHistory = historyEntries.slice(historyStart, historyStart + historyLimit);
 
   return {
     pendingToday,
     postedToday,
     totalPosted,
     pendingJobs,
+    pendingTotal,
     recentHistory,
+    historyTotal,
   };
 }
 

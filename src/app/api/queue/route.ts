@@ -1,17 +1,26 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getQueueStats, getJob } from '@/lib/jobQueue';
 
 /**
  * GET /api/queue
- * Returns queue statistics and recent jobs for the dashboard.
+ * Returns queue statistics and paginated jobs for the dashboard.
+ * Query params: pendingPage, pendingLimit, historyPage, historyLimit
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const stats = await getQueueStats();
+    const { searchParams } = new URL(request.url);
+    const opts = {
+      pendingPage: parseInt(searchParams.get('pendingPage') ?? '1', 10),
+      pendingLimit: parseInt(searchParams.get('pendingLimit') ?? '10', 10),
+      historyPage: parseInt(searchParams.get('historyPage') ?? '1', 10),
+      historyLimit: parseInt(searchParams.get('historyLimit') ?? '10', 10),
+    };
+
+    const stats = await getQueueStats(opts);
 
     // Enhance recent history with job details
     const historyWithDetails = await Promise.all(
-      stats.recentHistory.slice(0, 10).map(async (entry) => {
+      stats.recentHistory.map(async (entry) => {
         const job = await getJob(entry.id);
         return {
           id: entry.id,
@@ -38,7 +47,9 @@ export async function GET() {
         applyUrl: job.applyUrl,
         scrapedAt: job.scrapedAt,
       })),
+      pendingTotal: stats.pendingTotal,
       recentHistory: historyWithDetails,
+      historyTotal: stats.historyTotal,
     });
   } catch (error) {
     console.error('Queue stats error:', error);
