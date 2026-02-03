@@ -67,20 +67,25 @@ export async function addJobsForToday(jobs: ScrapedJob[]): Promise<number> {
 }
 
 /**
- * Get unposted jobs from today's queue
+ * Get unposted jobs from today's queue.
+ * @param limit Max number of jobs to return
+ * @param all If true, fetch all pending jobs (for filtering); if false, fetch random sample
  */
-export async function getTodaysUnpostedJobs(limit: number = 2): Promise<ScrapedJob[]> {
+export async function getTodaysUnpostedJobs(
+  limit: number = 2,
+  all: boolean = false
+): Promise<ScrapedJob[]> {
   const today = getTodayDate();
   const pendingKey = KEYS.TODAY_PENDING(today);
 
-  // Get random members from the pending set
-  const jobIds = await redis.srandmember<string[]>(pendingKey, limit);
+  const jobIds = all
+    ? (await redis.smembers<string[]>(pendingKey)) ?? []
+    : (await redis.srandmember<string[]>(pendingKey, limit)) ?? [];
 
   if (!jobIds || jobIds.length === 0) {
     return [];
   }
 
-  // Fetch job data for each ID
   const jobs: ScrapedJob[] = [];
   for (const id of jobIds) {
     const jobData = await redis.get<string>(KEYS.JOB_DATA(id));

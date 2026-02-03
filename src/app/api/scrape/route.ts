@@ -107,10 +107,12 @@ async function handleScrape() {
 
     console.log(`Scrape complete: ${scrapedJobs.length} scraped, ${jobs.length} after exclusions, ${addedCount} added to queue`);
 
+    const excludedCount = scrapedJobs.length - jobs.length;
     return NextResponse.json({
       success: true,
-      message: `Scraped ${scrapedJobs.length} jobs, added ${addedCount} new jobs to queue`,
+      message: `Scraped ${scrapedJobs.length} jobs${excludedCount > 0 ? ` (${excludedCount} excluded)` : ''}, added ${addedCount} new jobs to queue`,
       scraped: scrapedJobs.length,
+      excluded: excludedCount,
       added: addedCount,
       pendingToday: stats.pendingToday,
       totalPosted: stats.totalPosted,

@@ -86,8 +86,8 @@ async function handleAutoPost(requestUrl: string) {
   try {
     console.log('Starting auto-post...');
 
-    // Get up to 10 unposted jobs, filter excluded, then take 2 for posting
-    const jobs = await getTodaysUnpostedJobs(10);
+    // Get all unposted jobs, filter excluded, then take 2 for posting
+    const jobs = await getTodaysUnpostedJobs(10, true);
     const postableJobs = jobs.filter((j) => !isJobExcluded(j.title)).slice(0, 2);
 
     if (postableJobs.length === 0) {
