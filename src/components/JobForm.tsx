@@ -6,6 +6,7 @@ import {
   formatTwitterMessage,
   getCharacterStatus,
   parseJobDescription,
+  parsePastedJob,
 } from '@/lib/utils';
 import CharacterCounter from './CharacterCounter';
 import ImageUpload from './ImageUpload';
@@ -27,11 +28,12 @@ export default function JobForm() {
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState('');
   const [location, setLocation] = useState('');
-  const [jobType, setJobType] = useState('Full-time');
+  const [jobType, setJobType] = useState('');
   const [description, setDescription] = useState('');
   const [applyLink, setApplyLink] = useState('');
   const [hashtagInput, setHashtagInput] = useState('');
   const [image, setImage] = useState<string | undefined>();
+  const [pasteArea, setPasteArea] = useState('');
 
   const [isPosting, setIsPosting] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
@@ -47,9 +49,9 @@ export default function JobForm() {
   const jobData: JobData = useMemo(
     () => ({
       title: title || 'Job Title',
-      company: company || 'Company',
-      location: location || 'Location',
-      jobType: jobType || 'Full-time',
+      company: company.trim(),
+      location: location.trim(),
+      jobType: jobType.trim(),
       description: description || 'Job description...',
       applyLink: applyLink || 'https://example.com',
       hashtags,
@@ -107,6 +109,29 @@ export default function JobForm() {
     }
   };
 
+  const handlePasteJob = (text?: string) => {
+    const input = text ?? pasteArea;
+    const parsed = parsePastedJob(input);
+    if (parsed.title) setTitle(parsed.title);
+    if (parsed.company) setCompany(parsed.company);
+    if (parsed.location) setLocation(parsed.location);
+    if (parsed.jobType) setJobType(parsed.jobType);
+    if (parsed.description) setDescription(parsed.description);
+    if (parsed.applyLink) setApplyLink(parsed.applyLink);
+    if (parsed.suggestedHashtags.length > 0) {
+      setHashtagInput(parsed.suggestedHashtags.join(', '));
+    }
+    setPasteArea('');
+  };
+
+  const handlePasteAreaPaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted.trim().length > 50) {
+      e.preventDefault();
+      handlePasteJob(pasted);
+    }
+  };
+
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Form */}
@@ -114,6 +139,34 @@ export default function JobForm() {
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">
           Create Job Post
         </h2>
+
+        {/* Paste job - extract fields from raw text */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Paste job (optional)
+          </label>
+          <p className="text-xs text-gray-500 mb-2">
+            Paste raw job text from LinkedIn, Indeed, or any job board. We&apos;ll extract title, company, location, job type, description, apply link/email, and suggest hashtags.
+          </p>
+          <div className="flex gap-2">
+            <textarea
+              value={pasteArea}
+              onChange={(e) => setPasteArea(e.target.value)}
+              onPaste={handlePasteAreaPaste}
+              placeholder="Paste job listing here..."
+              rows={3}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+            <button
+              type="button"
+              onClick={() => handlePasteJob()}
+              disabled={!pasteArea.trim()}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              Extract fields
+            </button>
+          </div>
+        </div>
 
         {/* Form fields - stack on mobile, 2 cols on tablet+ */}
         <div className="space-y-4 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 lg:gap-6">
@@ -135,7 +188,7 @@ export default function JobForm() {
           {/* Company */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Company *
+              Company (Optional)
             </label>
             <input
               type="text"
@@ -143,14 +196,13 @@ export default function JobForm() {
               onChange={(e) => setCompany(e.target.value)}
               placeholder="e.g., TechCorp Inc."
               className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
             />
           </div>
 
           {/* Location */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Location *
+              Location (Optional)
             </label>
             <input
               type="text"
@@ -158,20 +210,20 @@ export default function JobForm() {
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g., Remote, New York, NY"
               className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
             />
           </div>
 
           {/* Job Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Job Type *
+              Job Type (Optional)
             </label>
             <select
               value={jobType}
               onChange={(e) => setJobType(e.target.value)}
               className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
+              <option value="">—</option>
               <option>Full-time</option>
               <option>Part-time</option>
               <option>Contract</option>
@@ -213,16 +265,16 @@ export default function JobForm() {
           </div>
         </div>
 
-        {/* Apply Link */}
+        {/* Apply Link or Email */}
         <div className="mt-4 sm:mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Apply Link *
+            Apply link or email *
           </label>
           <input
-            type="url"
+            type="text"
             value={applyLink}
             onChange={(e) => setApplyLink(e.target.value)}
-            placeholder="https://yourcompany.com/careers/job-id"
+            placeholder="https://company.com/apply or jobs@company.com"
             className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           />

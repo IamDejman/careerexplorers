@@ -142,6 +142,207 @@ export function parseJobDescription(raw: string): string {
   return result || raw;
 }
 
+/** Result of parsing pasted job text */
+export interface ParsedJob {
+  title: string;
+  company: string;
+  location: string;
+  jobType: string;
+  description: string;
+  applyLink: string;
+  suggestedHashtags: string[];
+}
+
+const JOB_TYPES = [
+  'Full-time',
+  'Part-time',
+  'Contract',
+  'Freelance',
+  'Internship',
+  'Remote',
+  'Hybrid',
+] as const;
+
+/**
+ * Parse pasted raw job text to extract title, company, location, job type, description, and apply link/email.
+ */
+export function parsePastedJob(raw: string): ParsedJob {
+  const text = raw.trim();
+  const result: ParsedJob = {
+    title: '',
+    company: '',
+    location: '',
+    jobType: '',
+    description: '',
+    applyLink: '',
+    suggestedHashtags: [],
+  };
+
+  if (!text) return result;
+
+  // Extract apply URL (prioritize career/apply links)
+  const urlRegex =
+    /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)/g;
+  const urls = text.match(urlRegex) || [];
+  const applyUrl =
+    urls.find(
+      (u) =>
+        /apply|career|job|position|recruit/i.test(u) || u.includes('linkedin.com/jobs')
+    ) || urls[0] || '';
+
+  // Extract apply email
+  const emailRegex =
+    /(?:apply|send|email|contact)\s*(?:to|at)?\s*:?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+  const emailMatch = emailRegex.exec(text);
+  const applyEmail = emailMatch?.[1] || '';
+  const standaloneEmail = text.match(
+    /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/
+  )?.[0];
+
+  result.applyLink = applyUrl || (applyEmail ? `mailto:${applyEmail}` : '') || (standaloneEmail ? `mailto:${standaloneEmail}` : '');
+
+  // Extract job type
+  const typeRegex = new RegExp(
+    `\\b(${JOB_TYPES.map((t) => t.replace('-', '[- ]?')).join('|')})\\b`,
+    'gi'
+  );
+  const typeMatch = text.match(typeRegex);
+  if (typeMatch) {
+    const normalized = typeMatch[0]!.toLowerCase();
+    result.jobType =
+      normalized.includes('full') ? 'Full-time'
+      : normalized.includes('part') ? 'Part-time'
+      : normalized.includes('contract') ? 'Contract'
+      : normalized.includes('freelance') ? 'Freelance'
+      : normalized.includes('intern') ? 'Internship'
+      : normalized.includes('remote') ? 'Remote'
+      : normalized.includes('hybrid') ? 'Hybrid'
+      : '';
+  }
+
+  // Extract labeled fields (common patterns)
+  type StringField = 'title' | 'company' | 'location';
+  const labelPatterns: { key: StringField; patterns: RegExp[] }[] = [
+    {
+      key: 'title',
+      patterns: [
+        /(?:job\s+title|position|role|title)\s*:?\s*([^\n]+)/i,
+        /(?:we(?:'re|\s+are)\s+hiring\s+(?:a|an)?)\s*([^\n.!?]+)/i,
+        /^(?:#\s*)?([A-Z][a-zA-Z\s]+(?:Engineer|Developer|Manager|Designer|Analyst|Specialist|Lead|Director)[^\n]*)/m,
+      ],
+    },
+    {
+      key: 'company',
+      patterns: [
+        /(?:company|organization|employer|about)\s*:?\s*([^\n]+)/i,
+        /(?:at|@)\s+([A-Za-z0-9\s&.,'-]+?)(?:\s*[|\-–]\s|$|\n)/,
+        /(?:join|work\s+with)\s+([A-Za-z0-9\s&.,'-]+)/i,
+      ],
+    },
+    {
+      key: 'location',
+      patterns: [
+        /(?:location|based\s+in|work\s+from|office)\s*:?\s*([^\n]+)/i,
+        /(?:remote|hybrid|onsite|in-office)\s*(?:-?\s*([^\n]+))?/i,
+      ],
+    },
+  ];
+
+  for (const { key, patterns } of labelPatterns) {
+    if (result[key]) continue;
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m && m[1]) {
+        const val = m[1].trim();
+        if (val.length > 1 && val.length < 200) {
+          result[key] = val;
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback: first line often = title, look for "at Company"
+  if (!result.title) {
+    const firstLine = text.split('\n')[0]?.trim() || '';
+    const atMatch = firstLine.match(/^(.+?)\s+at\s+(.+)$/i);
+    if (atMatch) {
+      result.title = atMatch[1]!.trim();
+      if (!result.company) result.company = atMatch[2]!.trim();
+    } else if (firstLine && firstLine.length < 100 && !firstLine.startsWith('http')) {
+      result.title = firstLine;
+    }
+  }
+
+  // Fallback: location from Remote/Hybrid in text
+  if (!result.location && /remote|hybrid|distributed/i.test(text)) {
+    result.location = result.jobType === 'Remote' ? 'Remote' : result.jobType === 'Hybrid' ? 'Hybrid' : 'Remote';
+  }
+  if (!result.location) result.location = 'Not specified';
+
+  // Description: remove extracted apply URLs, emails, and labeled lines; use rest
+  let desc = text;
+  if (applyUrl) desc = desc.replace(applyUrl, '');
+  if (applyEmail) desc = desc.replace(applyEmail, '');
+  if (standaloneEmail && !applyEmail) desc = desc.replace(standaloneEmail!, '');
+  desc = desc.replace(/apply\s*(?:to|at|here)?\s*:?\s*/gi, '');
+  desc = desc.replace(/\n{3,}/g, '\n\n').trim();
+  if (desc) result.description = parseJobDescription(desc);
+
+  result.suggestedHashtags = suggestHashtags(result);
+  return result;
+}
+
+/**
+ * Suggest hashtags based on parsed job data.
+ */
+export function suggestHashtags(parsed: Partial<ParsedJob>): string[] {
+  const tags = new Set<string>(['hiring', 'jobopening', 'jobs']);
+
+  if (parsed.title) {
+    const title = parsed.title.toLowerCase();
+    if (/engineer|developer|dev/i.test(title)) tags.add('techjobs');
+    if (/software|swe|sde/i.test(title)) tags.add('softwareengineering');
+    if (/designer|design/i.test(title)) tags.add('design');
+    if (/manager|lead|director/i.test(title)) tags.add('leadership');
+    if (/data|analyst|scientist/i.test(title)) tags.add('data');
+    if (/product/i.test(title)) tags.add('productmanagement');
+    if (/remote/i.test(title)) tags.add('remotework');
+  }
+
+  if (parsed.jobType) {
+    if (parsed.jobType === 'Remote') {
+      tags.add('remote');
+      tags.add('remotework');
+      tags.add('workfromhome');
+    }
+    if (parsed.jobType === 'Hybrid') tags.add('hybrid');
+    if (parsed.jobType === 'Internship') tags.add('internship');
+    if (parsed.jobType === 'Contract') tags.add('contract');
+    if (parsed.jobType === 'Freelance') tags.add('freelance');
+  }
+
+  if (parsed.company) tags.add('careers');
+
+  return Array.from(tags);
+}
+
+/**
+ * Normalize apply link: if it's a plain email, return mailto: form for href; otherwise return as-is.
+ * For display text (Twitter), we show the raw value so users see the email or URL.
+ */
+function getApplyHref(applyLink: string): string {
+  const val = applyLink.trim();
+  if (!val) return val;
+  if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('mailto:')) {
+    return val;
+  }
+  if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val)) {
+    return `mailto:${val}`;
+  }
+  return val;
+}
+
 /**
  * Format job data into a post message for X/Twitter
  */
@@ -152,35 +353,42 @@ export function formatTwitterMessage(job: JobData): string {
 
   const description = parseJobDescription(job.description);
 
-  return `🚀 ${job.title} at ${job.company}
+  const header = job.company.trim()
+    ? `🚀 ${job.title} at ${job.company}`
+    : `🚀 ${job.title}`;
 
-📍 ${job.location} | ${job.jobType}
+  const locationLine = [job.location.trim(), job.jobType.trim()].filter(Boolean).join(' | ');
+  const metaLine = locationLine ? `\n📍 ${locationLine}\n` : '\n';
 
+  const applyDisplay = job.applyLink.trim();
+
+  return `${header}${metaLine}
 ${description}
 
-Apply: ${job.applyLink}${hashtags}`;
+Apply: ${applyDisplay}${hashtags}`;
 }
 
 /**
  * Format job data into a post message for Telegram (HTML)
+ * Note: Hashtags are omitted - used for Twitter only.
  */
 export function formatTelegramMessage(job: JobData): string {
-  const hashtags = job.hashtags.length > 0
-    ? '\n\n' + job.hashtags.map(tag => `#${tag.replace(/^#/, '')}`).join(' ')
-    : '';
-
   const description = parseJobDescription(job.description);
+
+  const metaLines: string[] = [];
+  if (job.company.trim()) metaLines.push(`🏢 <b>Company:</b> ${job.company}`);
+  if (job.location.trim()) metaLines.push(`📍 <b>Location:</b> ${job.location}`);
+  if (job.jobType.trim()) metaLines.push(`💼 <b>Type:</b> ${job.jobType}`);
+  const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '';
+
+  const applyHref = getApplyHref(job.applyLink);
 
   return `🚀 <b>${job.title}</b>
 
-🏢 <b>Company:</b> ${job.company}
-📍 <b>Location:</b> ${job.location}
-💼 <b>Type:</b> ${job.jobType}
-
-<b>Description:</b>
+${metaBlock}<b>Description:</b>
 ${description}
 
-🔗 <a href="${job.applyLink}">Apply Now</a>${hashtags}`;
+🔗 <a href="${applyHref}">Apply Now</a>`;
 }
 
 /**
@@ -277,18 +485,24 @@ export function validateJobData(job: JobData): { valid: boolean; errors: string[
   const errors: string[] = [];
 
   if (!job.title.trim()) errors.push('Job title is required');
-  if (!job.company.trim()) errors.push('Company name is required');
-  if (!job.location.trim()) errors.push('Location is required');
-  if (!job.jobType.trim()) errors.push('Job type is required');
   if (!job.description.trim()) errors.push('Description is required');
-  if (!job.applyLink.trim()) errors.push('Apply link is required');
+  if (!job.applyLink.trim()) errors.push('Apply link or email is required');
 
-  // Validate URL
+  // Validate URL or email
   if (job.applyLink.trim()) {
-    try {
-      new URL(job.applyLink);
-    } catch {
-      errors.push('Apply link must be a valid URL');
+    const val = job.applyLink.trim();
+    const isEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val);
+    const hasProtocol = val.startsWith('http://') || val.startsWith('https://') || val.startsWith('mailto:');
+    if (isEmail) {
+      // Valid email
+    } else if (hasProtocol) {
+      try {
+        new URL(val);
+      } catch {
+        errors.push('Apply link must be a valid URL or email address');
+      }
+    } else {
+      errors.push('Apply link must be a valid URL (include https://) or email address');
     }
   }
 
