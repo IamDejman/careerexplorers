@@ -3,11 +3,15 @@ import { Receiver } from '@upstash/qstash';
 import { scrapeLatestJobs } from '@/lib/scraper';
 import { addJobsForToday, getQueueStats } from '@/lib/jobQueue';
 
-// QStash signature verification
-const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || '',
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || '',
-});
+/**
+ * Get QStash Receiver - lazy initialization to ensure env vars are available
+ */
+function getReceiver() {
+  return new Receiver({
+    currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || '',
+    nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || '',
+  });
+}
 
 /**
  * Verify the request is from QStash or has valid CRON_SECRET
@@ -18,6 +22,7 @@ async function verifyRequest(request: Request): Promise<boolean> {
   if (signature) {
     try {
       const body = await request.text();
+      const receiver = getReceiver();
       const isValid = await receiver.verify({
         signature,
         body,
