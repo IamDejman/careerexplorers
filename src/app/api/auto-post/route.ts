@@ -3,7 +3,7 @@ import { Receiver } from '@upstash/qstash';
 import { getTodaysUnpostedJobs, markAsPosted } from '@/lib/jobQueue';
 import { isJobExcluded } from '@/lib/excludedJobs';
 import { formatConciseTwitterJob, formatConciseTelegramJob, ConciseJobData } from '@/lib/utils';
-import { postToTwitter, getTweetUrl } from '@/lib/twitter';
+import { postToTwitter, getTweetUrl, getTrendingHashtags } from '@/lib/twitter';
 import { postToTelegram } from '@/lib/telegram';
 
 /**
@@ -100,6 +100,9 @@ async function handleAutoPost(requestUrl: string) {
       });
     }
 
+    // Fetch trending hashtags for Nigeria (cached 30 min)
+    const trendingHashtags = await getTrendingHashtags();
+
     if (dryRun) {
       const preview = postableJobs.map((job) => {
         const conciseJob: ConciseJobData = {
@@ -115,7 +118,7 @@ async function handleAutoPost(requestUrl: string) {
         return {
           jobId: job.id,
           title: `${job.title} at ${job.company}`,
-          twitterMessage: formatConciseTwitterJob(conciseJob),
+          twitterMessage: formatConciseTwitterJob(conciseJob, trendingHashtags),
           telegramMessage: formatConciseTelegramJob(conciseJob),
         };
       });
@@ -148,8 +151,8 @@ async function handleAutoPost(requestUrl: string) {
         sourceUrl: job.sourceUrl,
       };
 
-      // Format messages
-      const twitterMessage = formatConciseTwitterJob(conciseJob);
+      // Format messages (with trending hashtags for Twitter)
+      const twitterMessage = formatConciseTwitterJob(conciseJob, trendingHashtags);
       const telegramMessage = formatConciseTelegramJob(conciseJob);
 
       console.log(`Posting job: ${job.title} at ${job.company}`);

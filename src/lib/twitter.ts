@@ -135,3 +135,66 @@ export async function postToTwitter(
 export function getTweetUrl(tweetId: string): string {
   return `https://twitter.com/i/web/status/${tweetId}`;
 }
+
+/** Nigeria WOEID for Twitter trends */
+const NIGERIA_WOEID = 23424908;
+
+/** Cache TTL for trending hashtags (1 hour) */
+const TRENDS_CACHE_TTL = 60 * 60;
+
+/**
+ * Get trending hashtags from Twitter for Nigeria (or specified WOEID).
+ * Results are cached in Redis for 1 hour to respect rate limits (75 req/15 min).
+ * Returns hashtags without the # prefix (e.g. ["NigeriaJobs", "Hiring"]).
+ */
+export async function getTrendingHashtags(woeId: number = NIGERIA_WOEID): Promise<string[]> {
+  const cacheKey = `trends:hashtags:${woeId}`;
+
+  try {
+    const { Redis } = await import('@upstash/redis');
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+    const cached = await redis.get<string[]>(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+  } catch {
+    // Redis not configured or error - proceed to fetch from API
+  }
+
+  try {
+    const client = getTwitterClient();
+    const result = await client.v1.trendsByPlace(woeId);
+
+    // API returns [{ trends: TrendV1[], ... }]
+    const trendsData = Array.isArray(result) ? result[0] : result;
+    const trends = (trendsData as { trends?: { name: string }[] })?.trends ?? [];
+
+    const hashtags = trends
+      .map((t) => t.name.trim())
+      .filter((name) => name.startsWith('#'))
+      .map((name) => name.slice(1).replace(/^#/, ''))
+      .filter((tag) => tag.length > 1 && tag.length < 50)
+      .slice(0, 10);
+
+    if (hashtags.length > 0) {
+      try {
+        const { Redis } = await import('@upstash/redis');
+        const redis = new Redis({
+          url: process.env.UPSTASH_REDIS_REST_URL!,
+          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        });
+        await redis.set(cacheKey, hashtags, { ex: TRENDS_CACHE_TTL });
+      } catch {
+        // Ignore cache write errors
+      }
+    }
+
+    return hashtags;
+  } catch (error) {
+    console.error('Failed to fetch trending hashtags:', error);
+    return [];
+  }
+}

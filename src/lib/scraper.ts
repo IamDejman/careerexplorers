@@ -122,30 +122,80 @@ async function scrapeJobPage(url: string): Promise<ScrapedJob | null> {
       }
     });
 
-    // Extract description - get first few paragraphs
-    const descriptionParts: string[] = [];
-    $('p').each((i, el) => {
-      if (i < 3) { // First 3 paragraphs
-        const text = $(el).text().trim();
-        if (text && text.length > 50) {
-          descriptionParts.push(text);
+    // Extract apply email from Method of Application section
+    const fullText = $('body').text();
+    const methodMatch = fullText.match(/method\s+of\s+application[\s\S]*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
+      || fullText.match(/(?:send|email|apply)\s*(?:to|your\s+(?:cv|resume|application))?\s*[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    const applyEmail = methodMatch?.[1]?.trim() || '';
+
+    // Get apply URL - external link, or mailto if email found, else source URL
+    let applyUrl = url;
+    if (applyEmail) {
+      applyUrl = `mailto:${applyEmail}`;
+    } else {
+      $('a[href*="/job-application/"], a[href*="/apply-now/"]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href) {
+          applyUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
+          return false; // break
         }
-      }
-    });
-    let description = descriptionParts.join(' ').substring(0, 500);
-    if (description.length === 500) {
-      description = description.substring(0, description.lastIndexOf(' ')) + '...';
+      });
     }
 
-    // Get apply URL - either job application page or external link
-    let applyUrl = url; // Default to the job page itself
-    $('a[href*="/job-application/"], a[href*="/apply-now/"]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (href) {
-        applyUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
-        return false; // break
+    // Extract structured job content: About, Responsibilities, Qualifications
+    let about = '';
+    let responsibilities = '';
+    let qualifications = '';
+
+    // About: company intro paragraph (before job title h2)
+    $('p').each((_, el) => {
+      const text = $(el).text().trim();
+      if (text && text.length > 30 && text.length < 400 && !/posted|deadline|save|email|type your/i.test(text)) {
+        about = text.replace(/\s*\[?Read more[^\]]*\]?/i, '').trim();
+        return false; // take first good paragraph
       }
     });
+
+    // Extract Responsibilities and Qualification & Experience from list items
+    const respItems: string[] = [];
+    const qualItems: string[] = [];
+
+    $('strong, b').each((_, el) => {
+      const header = $(el).text().trim();
+      if (/^responsibilities$/i.test(header)) {
+        $(el).nextAll('ul').first().find('li').each((__, li) => {
+          const t = $(li).text().trim();
+          if (t && t.length > 5 && !/check how your cv|build your cv/i.test(t)) respItems.push(t);
+        });
+      }
+      if (/^qualification\s*(&|and)\s*experience$/i.test(header) || /^requirements$/i.test(header)) {
+        $(el).nextAll('ul').first().find('li').each((__, li) => {
+          const t = $(li).text().trim();
+          if (t && t.length > 5 && !/check how your cv|build your cv/i.test(t)) qualItems.push(t);
+        });
+      }
+    });
+    responsibilities = respItems.join('\n');
+    qualifications = qualItems.join('\n');
+
+    // Fallback: regex extraction from full text if DOM structure differs
+    if (!responsibilities && !qualifications) {
+      const respMatch = fullText.match(/responsibilities\s*([\s\S]*?)(?=qualification|requirements|method\s+of\s+application|$)/i);
+      if (respMatch) responsibilities = respMatch[1].replace(/\n{3,}/g, '\n\n').trim().substring(0, 800);
+      const qualMatch = fullText.match(/(?:qualification\s*(?:&|and)\s*experience|requirements)\s*([\s\S]*?)(?=method\s+of\s+application|check how your cv|$)/i);
+      if (qualMatch) qualifications = qualMatch[1].replace(/\n{3,}/g, '\n\n').trim().substring(0, 500);
+    }
+
+    // Build description with section headers for parseJobDescription
+    const parts: string[] = [];
+    if (about) parts.push(`About the role:\n${about}`);
+    else parts.push(`About the role:\n${company} is hiring a ${title}.`);
+    if (responsibilities) parts.push(`Responsibilities:\n${responsibilities}`);
+    if (qualifications) parts.push(`Requirements:\n${qualifications}`);
+    let description = parts.join('\n\n');
+    if (!description.trim()) {
+      description = `${title} position at ${company}`;
+    }
 
     // Skip if we couldn't extract essential data
     if (!title || !company) {

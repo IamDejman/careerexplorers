@@ -50,7 +50,7 @@ const SECTION_PATTERNS: { key: (typeof SECTION_ORDER)[number]; pattern: RegExp }
   {
     key: 'requirements',
     pattern:
-      /^(?:requirements|qualifications|what\s+we(?:'re|\s+are)?\s+looking\s+for|must\s+have|must\s+haves|skills\s+required|you\s+have)\s*:?\s*/im,
+      /^(?:requirements|qualifications|qualification\s*(?:&|and)\s*experience|what\s+we(?:'re|\s+are)?\s+looking\s+for|must\s+have|must\s+haves|skills\s+required|you\s+have)\s*:?\s*/im,
   },
   {
     key: 'benefits',
@@ -350,28 +350,81 @@ function isEmailApplyLink(applyLink: string): boolean {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val);
 }
 
+/** Extract plain email from mailto: or return as-is if already plain email */
+function getDisplayEmail(applyLink: string): string {
+  const val = applyLink.trim();
+  if (!val) return '';
+  if (val.startsWith('mailto:')) return val.slice(7).trim();
+  if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val)) return val;
+  return '';
+}
+
+/** Check if URL is a MyJobMag job page */
+function isMyJobMagUrl(url: string): boolean {
+  const val = url.trim();
+  if (!val) return false;
+  return /myjobmag\.com\/job\//i.test(val) || /myjobmag\.com\/job$/i.test(val);
+}
+
 /**
- * Format apply section: "Interested and qualified? Apply Now."
- * When there is a link (URL or email), "Apply Now" is the embedded/clickable link.
- * - Telegram: Apply Now is an <a> tag
- * - Twitter: Apply Now is plain text; URL/email appended on next line (Twitter auto-links URLs)
+ * Format apply section.
+ * - Email: "Interested and qualified candidates should send their CVs to: {email}" (plain text, no link)
+ * - MyJobMag URL: "Interested and qualified? Apply via the original listing." (no link)
+ * - External URL: "Apply Now" as link, URL on next line for Twitter
  */
 export function formatApplySection(
   applyLink: string,
   _company: string,
-  forTelegram: boolean
+  forTelegram: boolean,
+  sourceUrl?: string
 ): string {
   const val = applyLink.trim();
   if (!val) return '';
 
-  const href = getApplyHref(val);
+  // Email: show as plain text, not link
+  if (isEmailApplyLink(val)) {
+    const email = getDisplayEmail(val);
+    if (email) {
+      return `Interested and qualified candidates should send their CVs to: ${email}`;
+    }
+  }
 
+  // MyJobMag URL or same as source: don't show link
+  if (isMyJobMagUrl(val) || (sourceUrl && val === sourceUrl)) {
+    return 'Interested and qualified? Apply via the original listing.';
+  }
+
+  // External URL: Apply Now as link
+  const href = getApplyHref(val);
   if (forTelegram) {
     return `Interested and qualified? <a href="${href}">Apply Now</a>.`;
   }
-
-  // Twitter: plain text + URL/email on next line (Twitter auto-links)
   return `Interested and qualified? Apply Now.\n${val}`;
+}
+
+/**
+ * Strip metadata clutter from description (dates, location/type lines, title repetition)
+ */
+export function stripMetadataFromDescription(desc: string): string {
+  let out = desc
+    .replace(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s*\d{4}\b/gi, '')
+    .replace(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December),?\s*\d{4}\b/gi, '')
+    .replace(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December),?\s*/gi, '')
+    .replace(/\bPosted:\s*[^\n]+/gi, '')
+    .replace(/\bDeadline:\s*[^\n]+/gi, '')
+    .replace(/\b[A-Za-z\s]+\s*\|\s*(?:Remote|Full Time|Part Time|Contract|Hybrid)\s*Jobs?/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return out;
+}
+
+/** Ensure description has About the role; prepend fallback when missing */
+function ensureAboutSection(parsedDesc: string, company: string, title: string): string {
+  if (/about\s+the\s+role:/i.test(parsedDesc) || /^about\s+the\s+role\s*:/im.test(parsedDesc)) {
+    return parsedDesc;
+  }
+  const fallback = `About the role:\n${company} is hiring a ${title}.\n\n`;
+  return fallback + parsedDesc;
 }
 
 /**
@@ -582,72 +635,102 @@ export interface ConciseJobData {
   sourceUrl: string;
 }
 
+/** Job-relevant keywords to prefer from trending hashtags */
+const JOB_RELEVANT_KEYWORDS = /job|hire|career|lagos|nigeria|remote|tech|work|recruit/i;
+
 /**
- * Generate hashtags for a scraped job
+ * Generate hashtags for a scraped job.
+ * Merges trending hashtags (when provided) with job-specific hashtags.
+ * Prioritizes job-relevant trending hashtags, then job-specific, then other trending.
+ * Limit: 5 hashtags max.
  */
-export function generateJobHashtags(job: ConciseJobData): string[] {
-  const tags: string[] = ['NigeriaJobs', 'Hiring'];
+export function generateJobHashtags(job: ConciseJobData, trendingHashtags?: string[]): string[] {
+  const jobTags: string[] = [];
 
   // Location-based hashtags
   const locationLower = job.location.toLowerCase();
-  if (locationLower.includes('lagos')) tags.push('Lagos');
-  if (locationLower.includes('abuja')) tags.push('Abuja');
-  if (locationLower.includes('port harcourt')) tags.push('PortHarcourt');
-  if (locationLower.includes('remote')) tags.push('RemoteJobs');
+  if (locationLower.includes('lagos')) jobTags.push('Lagos');
+  if (locationLower.includes('abuja')) jobTags.push('Abuja');
+  if (locationLower.includes('port harcourt')) jobTags.push('PortHarcourt');
+  if (locationLower.includes('remote')) jobTags.push('RemoteJobs');
 
   // Job type hashtags
   const typeLower = job.jobType.toLowerCase();
-  if (typeLower.includes('full')) tags.push('FullTime');
-  if (typeLower.includes('part')) tags.push('PartTime');
-  if (typeLower.includes('intern')) tags.push('Internship');
-  if (typeLower.includes('contract')) tags.push('Contract');
+  if (typeLower.includes('full')) jobTags.push('FullTime');
+  if (typeLower.includes('part')) jobTags.push('PartTime');
+  if (typeLower.includes('intern')) jobTags.push('Internship');
+  if (typeLower.includes('contract')) jobTags.push('Contract');
 
   // Title-based hashtags
   const titleLower = job.title.toLowerCase();
-  if (/engineer|developer|programmer|software/i.test(titleLower)) tags.push('TechJobs');
-  if (/manager|management/i.test(titleLower)) tags.push('Management');
-  if (/sales|business\s+development/i.test(titleLower)) tags.push('Sales');
-  if (/marketing|brand/i.test(titleLower)) tags.push('Marketing');
-  if (/finance|accountant|accounting/i.test(titleLower)) tags.push('Finance');
-  if (/hr|human\s+resource/i.test(titleLower)) tags.push('HR');
-  if (/design|creative/i.test(titleLower)) tags.push('Design');
-  if (/data|analyst/i.test(titleLower)) tags.push('DataJobs');
+  if (/engineer|developer|programmer|software/i.test(titleLower)) jobTags.push('TechJobs');
+  if (/manager|management/i.test(titleLower)) jobTags.push('Management');
+  if (/sales|business\s+development/i.test(titleLower)) jobTags.push('Sales');
+  if (/marketing|brand/i.test(titleLower)) jobTags.push('Marketing');
+  if (/finance|accountant|accounting/i.test(titleLower)) jobTags.push('Finance');
+  if (/hr|human\s+resource/i.test(titleLower)) jobTags.push('HR');
+  if (/design|creative/i.test(titleLower)) jobTags.push('Design');
+  if (/data|analyst/i.test(titleLower)) jobTags.push('DataJobs');
 
-  // Limit to 5 hashtags max
-  return tags.slice(0, 5);
+  // Always include these if not already present
+  if (!jobTags.some((t) => /nigeriajobs/i.test(t))) jobTags.unshift('NigeriaJobs');
+  if (!jobTags.some((t) => /hiring/i.test(t))) jobTags.unshift('Hiring');
+
+  // Merge: up to 2 trending (prefer job-relevant) + up to 3 job-specific = 5 max
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  if (trendingHashtags && trendingHashtags.length > 0) {
+    const jobRelevant = trendingHashtags.filter((t) => JOB_RELEVANT_KEYWORDS.test(t));
+    const toAdd = [...jobRelevant, ...trendingHashtags.filter((t) => !jobRelevant.includes(t))].slice(0, 2);
+    for (const t of toAdd) {
+      const normalized = t.replace(/^#/, '').trim();
+      if (normalized && !seen.has(normalized)) {
+        seen.add(normalized);
+        result.push(normalized);
+      }
+    }
+  }
+
+  for (const tag of jobTags) {
+    const normalized = tag.replace(/^#/, '').trim();
+    if (normalized && !seen.has(normalized) && result.length < 5) {
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  }
+
+  return result.slice(0, 5);
 }
 
 /**
  * Format a scraped job for Twitter (concise format)
- * Designed for automated posting - short and punchy, fits ~280 chars when possible
+ * Designed for automated posting - short and punchy, fits ~280 chars when possible.
+ * Pass trendingHashtags to include real-time trending hashtags from Twitter.
  */
-export function formatConciseTwitterJob(job: ConciseJobData): string {
-  const hashtags = generateJobHashtags(job);
+export function formatConciseTwitterJob(job: ConciseJobData, trendingHashtags?: string[]): string {
+  const hashtags = generateJobHashtags(job, trendingHashtags);
   const hashtagStr = hashtags.map(t => `#${t}`).join(' ');
 
   const header = `${job.title} at ${job.company}`;
-  const { locationLine, typeLine } = parseLocationAndType(job.location, job.jobType);
-  const metaLines: string[] = [];
-  if (locationLine) metaLines.push(locationLine);
-  if (typeLine) metaLines.push(typeLine);
-  const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '\n';
-
-  const parsedDesc = parseJobDescription(job.description);
-  const firstSentence = getFirstSentence(job.description, 80);
+  const sanitized = stripMetadataFromDescription(job.description);
+  const parsedDesc = parseJobDescription(sanitized);
+  const withAbout = ensureAboutSection(parsedDesc, job.company, job.title);
+  const firstSentence = getFirstSentence(sanitized, 80);
   const intro = firstSentence
     ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
     : '';
 
-  const applySection = formatApplySection(job.applyUrl, job.company, false);
+  const applySection = formatApplySection(job.applyUrl, job.company, false, job.sourceUrl);
 
   const charLimit = getXCharLimit();
-  const reserved = header.length + metaBlock.length + intro.length + applySection.length + hashtagStr.length + 20;
+  const reserved = header.length + intro.length + applySection.length + hashtagStr.length + 30;
   const descBudget = Math.max(80, charLimit - reserved);
-  const description = truncateForTwitter(parsedDesc, descBudget);
+  const description = truncateForTwitter(withAbout, descBudget);
 
   return `${header}
 
-${metaBlock}${intro}${description}
+${intro}${description}
 
 ${applySection}
 
@@ -661,23 +744,19 @@ ${hashtagStr}`;
 export function formatConciseTelegramJob(job: ConciseJobData): string {
   const header = `<b>${escapeHtml(job.title)} at ${escapeHtml(job.company)}</b>`;
 
-  const metaLines: string[] = [];
-  if (job.company.trim()) metaLines.push(`<b>Company:</b> ${escapeHtml(job.company)}`);
-  if (job.location.trim()) metaLines.push(`<b>Location:</b> ${escapeHtml(job.location)}`);
-  if (job.jobType.trim()) metaLines.push(`<b>Type:</b> ${escapeHtml(job.jobType)}`);
-  const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '';
-
-  const parsedDesc = parseJobDescription(job.description);
-  const firstSentence = getFirstSentence(job.description, 80);
+  const sanitized = stripMetadataFromDescription(job.description);
+  const parsedDesc = parseJobDescription(sanitized);
+  const withAbout = ensureAboutSection(parsedDesc, job.company, job.title);
+  const firstSentence = getFirstSentence(sanitized, 80);
   const intro = firstSentence
     ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
     : '';
 
-  const applySection = formatApplySection(job.applyUrl, job.company, true);
+  const applySection = formatApplySection(job.applyUrl, job.company, true, job.sourceUrl);
 
   return `${header}
 
-${metaBlock}${intro}${parsedDesc}
+${intro}${withAbout}
 
 ${applySection}`;
 }
