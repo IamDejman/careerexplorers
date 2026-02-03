@@ -14,10 +14,15 @@ function getReceiver() {
 }
 
 /**
- * Verify the request is from QStash or has valid CRON_SECRET
+ * Verify the request is from QStash (for POST) or allow GET requests (from dashboard)
  */
 async function verifyRequest(request: Request): Promise<boolean> {
-  // Check for QStash signature
+  // Allow GET requests (from dashboard) without auth
+  if (request.method === 'GET') {
+    return true;
+  }
+
+  // For POST requests, check for QStash signature
   const signature = request.headers.get('upstash-signature');
   if (signature) {
     try {
@@ -34,7 +39,7 @@ async function verifyRequest(request: Request): Promise<boolean> {
     }
   }
 
-  // Fallback to CRON_SECRET for manual/dashboard triggers
+  // Fallback to CRON_SECRET for other POST requests
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
