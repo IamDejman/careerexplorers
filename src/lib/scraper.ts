@@ -177,9 +177,10 @@ async function scrapeJobPage(url: string): Promise<ScrapedJob | null> {
 export async function scrapeLatestJobs(limit: number = 50): Promise<ScrapedJob[]> {
   console.log('Starting job scrape from MyJobMag...');
 
-  // Get job URLs from listings page
-  const jobUrls = await getJobUrls();
-  console.log(`Found ${jobUrls.length} job URLs`);
+  // Get job URLs from Today's jobs page (only jobs posted today on MyJobMag)
+  const TODAY_JOBS_URL = `${BASE_URL}/jobs-by-date/today`;
+  const jobUrls = await getJobUrls(TODAY_JOBS_URL);
+  console.log(`Found ${jobUrls.length} job URLs from today's listings`);
 
   // Limit the number of jobs to scrape
   const urlsToScrape = jobUrls.slice(0, limit);

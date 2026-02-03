@@ -329,7 +329,6 @@ export function suggestHashtags(parsed: Partial<ParsedJob>): string[] {
 
 /**
  * Normalize apply link: if it's a plain email, return mailto: form for href; otherwise return as-is.
- * For display text (Twitter), we show the raw value so users see the email or URL.
  */
 function getApplyHref(applyLink: string): string {
   const val = applyLink.trim();
@@ -343,6 +342,108 @@ function getApplyHref(applyLink: string): string {
   return val;
 }
 
+/** Check if apply link is an email (mailto: or plain email) */
+function isEmailApplyLink(applyLink: string): boolean {
+  const val = applyLink.trim();
+  if (!val) return false;
+  if (val.startsWith('mailto:')) return true;
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val);
+}
+
+/** Extract display email from apply link */
+function getDisplayEmail(applyLink: string): string {
+  const val = applyLink.trim();
+  if (val.startsWith('mailto:')) return val.replace(/^mailto:/i, '');
+  return val;
+}
+
+/** Extract domain from URL for display (e.g. myjobmag.com, career2.successfactors.eu) */
+function getUrlDomain(url: string): string {
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+    return u.hostname.replace(/^www\./, '');
+  } catch {
+    return 'apply';
+  }
+}
+
+/**
+ * Format apply section: email format or URL format with link embedded in company name.
+ * - Email: "Interested and qualified candidates should send their CVs to: [email]"
+ * - URL: "Interested and qualified? Go to [CompanyName] on [domain] to apply."
+ *   Twitter: append full URL on next line. Telegram: company name is clickable link.
+ */
+export function formatApplySection(
+  applyLink: string,
+  company: string,
+  forTelegram: boolean
+): string {
+  const val = applyLink.trim();
+  if (!val) return '';
+
+  const companyName = company.trim() || 'the company';
+
+  if (isEmailApplyLink(val)) {
+    const email = getDisplayEmail(val);
+    const href = getApplyHref(val);
+    if (forTelegram) {
+      return `Interested and qualified candidates should send their CVs to: <a href="${href}">${escapeHtml(email)}</a>`;
+    }
+    return `Interested and qualified candidates should send their CVs to: ${email}`;
+  }
+
+  // URL
+  const domain = getUrlDomain(val);
+  const href = getApplyHref(val);
+  if (forTelegram) {
+    return `Interested and qualified? Go to <a href="${href}">${escapeHtml(companyName)}</a> on ${escapeHtml(domain)} to apply.`;
+  }
+  return `Interested and qualified? Go to ${companyName} on ${domain} to apply.\n${val}`;
+}
+
+/**
+ * Truncate text at word boundary for Twitter character limit.
+ */
+export function truncateForTwitter(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const cut = trimmed.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > maxChars * 0.5) {
+    return cut.slice(0, lastSpace).trim();
+  }
+  return cut.trim();
+}
+
+/** Extract first sentence or intro for "We're hiring!" line */
+function getFirstSentence(text: string, maxChars: number = 120): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  const firstPeriod = trimmed.indexOf('. ');
+  const firstNewline = trimmed.indexOf('\n');
+  let end = trimmed.length;
+  if (firstPeriod > 0 && firstPeriod < maxChars) end = Math.min(end, firstPeriod + 1);
+  if (firstNewline > 0 && firstNewline < maxChars) end = Math.min(end, firstNewline);
+  const sentence = trimmed.slice(0, end).trim();
+  return truncateForTwitter(sentence, maxChars);
+}
+
+/** Parse jobType into location part (Remote/Hybrid) and type part (Full Time, etc.) */
+function parseLocationAndType(location: string, jobType: string): { locationLine: string; typeLine: string } {
+  const loc = location.trim();
+  const type = jobType.trim();
+  if (!type) return { locationLine: loc, typeLine: '' };
+  const parts = type.split('|').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const workArrangement = parts[0]!; // e.g. Remote
+    const employmentType = parts.slice(1).join(' | '); // e.g. Full Time
+    const locationLine = loc ? `${loc} | ${workArrangement}` : workArrangement;
+    return { locationLine, typeLine: employmentType };
+  }
+  const locationLine = loc && type ? `${loc} | ${type}` : loc || type;
+  return { locationLine, typeLine: '' };
+}
+
 /**
  * Format job data into a post message for X/Twitter
  */
@@ -352,20 +453,27 @@ export function formatTwitterMessage(job: JobData): string {
     : '';
 
   const description = parseJobDescription(job.description);
+  const firstSentence = getFirstSentence(job.description, 100);
 
   const header = job.company.trim()
-    ? `🚀 ${job.title} at ${job.company}`
-    : `🚀 ${job.title}`;
+    ? `${job.title} at ${job.company}`
+    : job.title;
 
-  const locationLine = [job.location.trim(), job.jobType.trim()].filter(Boolean).join(' | ');
-  const metaLine = locationLine ? `\n📍 ${locationLine}\n` : '\n';
+  const { locationLine, typeLine } = parseLocationAndType(job.location, job.jobType);
+  const metaLines: string[] = [];
+  if (locationLine) metaLines.push(locationLine);
+  if (typeLine) metaLines.push(typeLine);
+  const metaBlock = metaLines.length > 0 ? '\n' + metaLines.join('\n') + '\n\n' : '\n\n';
 
-  const applyDisplay = job.applyLink.trim();
+  const applySection = formatApplySection(job.applyLink, job.company, false);
 
-  return `${header}${metaLine}
-${description}
+  const intro = firstSentence
+    ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
+    : '';
 
-Apply: ${applyDisplay}${hashtags}`;
+  return `${header}${metaBlock}${intro}${description}
+
+${applySection}${hashtags}`;
 }
 
 /**
@@ -374,21 +482,29 @@ Apply: ${applyDisplay}${hashtags}`;
  */
 export function formatTelegramMessage(job: JobData): string {
   const description = parseJobDescription(job.description);
+  const firstSentence = getFirstSentence(job.description, 100);
+
+  const header = job.company.trim()
+    ? `<b>${job.title} at ${job.company}</b>`
+    : `<b>${job.title}</b>`;
 
   const metaLines: string[] = [];
-  if (job.company.trim()) metaLines.push(`🏢 <b>Company:</b> ${job.company}`);
-  if (job.location.trim()) metaLines.push(`📍 <b>Location:</b> ${job.location}`);
-  if (job.jobType.trim()) metaLines.push(`💼 <b>Type:</b> ${job.jobType}`);
+  if (job.company.trim()) metaLines.push(`<b>Company:</b> ${job.company}`);
+  if (job.location.trim()) metaLines.push(`<b>Location:</b> ${job.location}`);
+  if (job.jobType.trim()) metaLines.push(`<b>Type:</b> ${job.jobType}`);
   const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '';
 
-  const applyHref = getApplyHref(job.applyLink);
+  const intro = firstSentence
+    ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
+    : '';
 
-  return `🚀 <b>${job.title}</b>
+  const applySection = formatApplySection(job.applyLink, job.company, true);
 
-${metaBlock}<b>Description:</b>
-${description}
+  return `${header}
 
-🔗 <a href="${applyHref}">Apply Now</a>`;
+${metaBlock}${intro}${description}
+
+${applySection}`;
 }
 
 /**
@@ -530,34 +646,39 @@ export function generateJobHashtags(job: ConciseJobData): string[] {
 
 /**
  * Format a scraped job for Twitter (concise format)
- * Designed for automated posting - short and punchy
+ * Designed for automated posting - short and punchy, fits ~280 chars when possible
  */
 export function formatConciseTwitterJob(job: ConciseJobData): string {
   const hashtags = generateJobHashtags(job);
   const hashtagStr = hashtags.map(t => `#${t}`).join(' ');
 
-  // Build concise message
-  const lines: string[] = [];
+  const header = `${job.title} at ${job.company}`;
+  const { locationLine, typeLine } = parseLocationAndType(job.location, job.jobType);
+  const metaLines: string[] = [];
+  if (locationLine) metaLines.push(locationLine);
+  if (typeLine) metaLines.push(typeLine);
+  const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '\n';
 
-  // Header line
-  lines.push(`🚀 ${job.title} at ${job.company}`);
-  lines.push('');
+  const parsedDesc = parseJobDescription(job.description);
+  const firstSentence = getFirstSentence(job.description, 80);
+  const intro = firstSentence
+    ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
+    : '';
 
-  // Meta line
-  const meta = [job.location, job.jobType].filter(Boolean).join(' | ');
-  if (meta) {
-    lines.push(`📍 ${meta}`);
-    lines.push('');
-  }
+  const applySection = formatApplySection(job.applyUrl, job.company, false);
 
-  // Apply link
-  lines.push(`Apply: ${job.applyUrl}`);
-  lines.push('');
+  const charLimit = getXCharLimit();
+  const reserved = header.length + metaBlock.length + intro.length + applySection.length + hashtagStr.length + 20;
+  const descBudget = Math.max(80, charLimit - reserved);
+  const description = truncateForTwitter(parsedDesc, descBudget);
 
-  // Hashtags
-  lines.push(hashtagStr);
+  return `${header}
 
-  return lines.join('\n');
+${metaBlock}${intro}${description}
+
+${applySection}
+
+${hashtagStr}`;
 }
 
 /**
@@ -565,24 +686,27 @@ export function formatConciseTwitterJob(job: ConciseJobData): string {
  * Designed for automated posting - clean and readable
  */
 export function formatConciseTelegramJob(job: ConciseJobData): string {
-  const lines: string[] = [];
+  const header = `<b>${escapeHtml(job.title)} at ${escapeHtml(job.company)}</b>`;
 
-  // Header
-  lines.push(`<b>🚀 ${escapeHtml(job.title)}</b>`);
-  lines.push(`🏢 ${escapeHtml(job.company)}`);
+  const metaLines: string[] = [];
+  if (job.company.trim()) metaLines.push(`<b>Company:</b> ${escapeHtml(job.company)}`);
+  if (job.location.trim()) metaLines.push(`<b>Location:</b> ${escapeHtml(job.location)}`);
+  if (job.jobType.trim()) metaLines.push(`<b>Type:</b> ${escapeHtml(job.jobType)}`);
+  const metaBlock = metaLines.length > 0 ? metaLines.join('\n') + '\n\n' : '';
 
-  // Meta
-  const meta = [job.location, job.jobType].filter(Boolean).join(' | ');
-  if (meta) {
-    lines.push(`📍 ${escapeHtml(meta)}`);
-  }
+  const parsedDesc = parseJobDescription(job.description);
+  const firstSentence = getFirstSentence(job.description, 80);
+  const intro = firstSentence
+    ? `We're hiring! ${firstSentence}${firstSentence.endsWith('.') ? '' : '.'}\n\n`
+    : '';
 
-  lines.push('');
+  const applySection = formatApplySection(job.applyUrl, job.company, true);
 
-  // Apply link
-  lines.push(`<a href="${job.applyUrl}">Apply Now →</a>`);
+  return `${header}
 
-  return lines.join('\n');
+${metaBlock}${intro}${parsedDesc}
+
+${applySection}`;
 }
 
 /**
