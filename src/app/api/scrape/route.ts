@@ -1,24 +1,73 @@
 import { NextResponse } from 'next/server';
+import { Receiver } from '@upstash/qstash';
 import { scrapeLatestJobs } from '@/lib/scraper';
 import { addJobsForToday, getQueueStats } from '@/lib/jobQueue';
 
-/**
- * GET /api/scrape
- * Scrapes jobs from MyJobMag and adds new ones to today's queue.
- * Protected by CRON_SECRET for production use.
- */
-export async function GET(request: Request) {
-  // Verify cron secret in production
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+// QStash signature verification
+const receiver = new Receiver({
+  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || '',
+  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || '',
+});
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
+/**
+ * Verify the request is from QStash or has valid CRON_SECRET
+ */
+async function verifyRequest(request: Request): Promise<boolean> {
+  // Check for QStash signature
+  const signature = request.headers.get('upstash-signature');
+  if (signature) {
+    try {
+      const body = await request.text();
+      const isValid = await receiver.verify({
+        signature,
+        body,
+        url: request.url,
+      });
+      return isValid;
+    } catch {
+      return false;
+    }
   }
 
+  // Fallback to CRON_SECRET for manual/dashboard triggers
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  // Allow in development without auth
+  if (process.env.NODE_ENV === 'development') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * POST /api/scrape (QStash uses POST)
+ * GET /api/scrape (for manual/dashboard triggers)
+ * Scrapes jobs from MyJobMag and adds new ones to today's queue.
+ */
+export async function POST(request: Request) {
+  const isValid = await verifyRequest(request);
+  if (!isValid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return handleScrape();
+}
+
+export async function GET(request: Request) {
+  const isValid = await verifyRequest(request);
+  if (!isValid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return handleScrape();
+}
+
+async function handleScrape() {
   try {
     console.log('Starting job scrape...');
 

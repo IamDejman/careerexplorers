@@ -1,27 +1,76 @@
 import { NextResponse } from 'next/server';
+import { Receiver } from '@upstash/qstash';
 import { getTodaysUnpostedJobs, markAsPosted } from '@/lib/jobQueue';
 import { formatConciseTwitterJob, formatConciseTelegramJob, ConciseJobData } from '@/lib/utils';
 import { postToTwitter, getTweetUrl } from '@/lib/twitter';
 import { postToTelegram } from '@/lib/telegram';
 
-/**
- * GET /api/auto-post
- * Posts up to 2 unposted jobs from today's queue to Twitter and Telegram.
- * Skips if no jobs available.
- * Protected by CRON_SECRET for production use.
- */
-export async function GET(request: Request) {
-  // Verify cron secret in production
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+// QStash signature verification
+const receiver = new Receiver({
+  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || '',
+  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || '',
+});
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
+/**
+ * Verify the request is from QStash or has valid CRON_SECRET
+ */
+async function verifyRequest(request: Request): Promise<boolean> {
+  // Check for QStash signature
+  const signature = request.headers.get('upstash-signature');
+  if (signature) {
+    try {
+      const body = await request.text();
+      const isValid = await receiver.verify({
+        signature,
+        body,
+        url: request.url,
+      });
+      return isValid;
+    } catch {
+      return false;
+    }
   }
 
+  // Fallback to CRON_SECRET for manual/dashboard triggers
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  // Allow in development without auth
+  if (process.env.NODE_ENV === 'development') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * POST /api/auto-post (QStash uses POST)
+ * GET /api/auto-post (for manual/dashboard triggers)
+ * Posts up to 2 unposted jobs from today's queue to Twitter and Telegram.
+ * Skips if no jobs available.
+ */
+export async function POST(request: Request) {
+  const isValid = await verifyRequest(request);
+  if (!isValid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return handleAutoPost();
+}
+
+export async function GET(request: Request) {
+  const isValid = await verifyRequest(request);
+  if (!isValid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return handleAutoPost();
+}
+
+async function handleAutoPost() {
   try {
     console.log('Starting auto-post...');
 
