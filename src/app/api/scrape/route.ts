@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Receiver } from '@upstash/qstash';
 import { scrapeLatestJobs } from '@/lib/scraper';
 import { addJobsForToday, getQueueStats } from '@/lib/jobQueue';
+import { isJobExcluded } from '@/lib/excludedJobs';
 
 /**
  * Get QStash Receiver - lazy initialization to ensure env vars are available
@@ -82,13 +83,18 @@ async function handleScrape() {
     console.log('Starting job scrape...');
 
     // Scrape latest jobs (limit to 30 per run)
-    const jobs = await scrapeLatestJobs(30);
+    const scrapedJobs = await scrapeLatestJobs(30);
+
+    // Filter out excluded job titles before adding to queue
+    const jobs = scrapedJobs.filter((j) => !isJobExcluded(j.title));
 
     if (jobs.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No jobs found to scrape',
-        scraped: 0,
+        message: scrapedJobs.length === 0
+          ? 'No jobs found to scrape'
+          : `All ${scrapedJobs.length} scraped jobs were excluded`,
+        scraped: scrapedJobs.length,
         added: 0,
       });
     }
@@ -99,12 +105,12 @@ async function handleScrape() {
     // Get updated stats
     const stats = await getQueueStats();
 
-    console.log(`Scrape complete: ${jobs.length} scraped, ${addedCount} added to queue`);
+    console.log(`Scrape complete: ${scrapedJobs.length} scraped, ${jobs.length} after exclusions, ${addedCount} added to queue`);
 
     return NextResponse.json({
       success: true,
-      message: `Scraped ${jobs.length} jobs, added ${addedCount} new jobs to queue`,
-      scraped: jobs.length,
+      message: `Scraped ${scrapedJobs.length} jobs, added ${addedCount} new jobs to queue`,
+      scraped: scrapedJobs.length,
       added: addedCount,
       pendingToday: stats.pendingToday,
       totalPosted: stats.totalPosted,
