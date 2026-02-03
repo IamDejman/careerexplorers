@@ -350,55 +350,28 @@ function isEmailApplyLink(applyLink: string): boolean {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val);
 }
 
-/** Extract display email from apply link */
-function getDisplayEmail(applyLink: string): string {
-  const val = applyLink.trim();
-  if (val.startsWith('mailto:')) return val.replace(/^mailto:/i, '');
-  return val;
-}
-
-/** Extract domain from URL for display (e.g. myjobmag.com, career2.successfactors.eu) */
-function getUrlDomain(url: string): string {
-  try {
-    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return u.hostname.replace(/^www\./, '');
-  } catch {
-    return 'apply';
-  }
-}
-
 /**
- * Format apply section: email format or URL format with link embedded in company name.
- * - Email: "Interested and qualified candidates should send their CVs to: [email]"
- * - URL: "Interested and qualified? Go to [CompanyName] on [domain] to apply."
- *   Twitter: append full URL on next line. Telegram: company name is clickable link.
+ * Format apply section: "Interested and qualified? Apply Now."
+ * When there is a link (URL or email), "Apply Now" is the embedded/clickable link.
+ * - Telegram: Apply Now is an <a> tag
+ * - Twitter: Apply Now is plain text; URL/email appended on next line (Twitter auto-links URLs)
  */
 export function formatApplySection(
   applyLink: string,
-  company: string,
+  _company: string,
   forTelegram: boolean
 ): string {
   const val = applyLink.trim();
   if (!val) return '';
 
-  const companyName = company.trim() || 'the company';
-
-  if (isEmailApplyLink(val)) {
-    const email = getDisplayEmail(val);
-    const href = getApplyHref(val);
-    if (forTelegram) {
-      return `Interested and qualified candidates should send their CVs to: <a href="${href}">${escapeHtml(email)}</a>`;
-    }
-    return `Interested and qualified candidates should send their CVs to: ${email}`;
-  }
-
-  // URL
-  const domain = getUrlDomain(val);
   const href = getApplyHref(val);
+
   if (forTelegram) {
-    return `Interested and qualified? Go to <a href="${href}">${escapeHtml(companyName)}</a> on ${escapeHtml(domain)} to apply.`;
+    return `Interested and qualified? <a href="${href}">Apply Now</a>.`;
   }
-  return `Interested and qualified? Go to ${companyName} on ${domain} to apply.\n${val}`;
+
+  // Twitter: plain text + URL/email on next line (Twitter auto-links)
+  return `Interested and qualified? Apply Now.\n${val}`;
 }
 
 /**
