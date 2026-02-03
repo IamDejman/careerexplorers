@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, FormEvent } from 'react';
-import { getCharacterStatus, X_CHAR_LIMIT } from '@/lib/utils';
+import { getCharacterStatus } from '@/lib/utils';
 import CharacterCounter from './CharacterCounter';
 import ImageUpload from './ImageUpload';
 
@@ -104,6 +104,7 @@ export default function QuickPost() {
               count={characterStatus.count}
               needsThread={characterStatus.needsThread}
               threadCount={characterStatus.threadCount}
+              charLimit={characterStatus.charLimit}
             />
           </div>
         </div>

@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useMemo, FormEvent } from 'react';
-import { JobData, formatTwitterMessage, getCharacterStatus } from '@/lib/utils';
+import {
+  JobData,
+  formatTwitterMessage,
+  getCharacterStatus,
+  parseJobDescription,
+} from '@/lib/utils';
 import CharacterCounter from './CharacterCounter';
 import ImageUpload from './ImageUpload';
 import PostPreview from './PostPreview';
@@ -178,13 +183,22 @@ export default function JobForm() {
 
         {/* Description - Full width */}
         <div className="mt-4 sm:mt-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description *
-          </label>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              Description *
+            </label>
+            <button
+              type="button"
+              onClick={() => setDescription(parseJobDescription(description))}
+              className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Structure description
+            </button>
+          </div>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the role, requirements, and what makes it exciting..."
+            placeholder="Paste raw job text here. Use 'Structure description' to parse sections (Requirements, Benefits, etc.) into a consistent order."
             rows={4}
             className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             required
@@ -194,6 +208,7 @@ export default function JobForm() {
               count={characterStatus.count}
               needsThread={characterStatus.needsThread}
               threadCount={characterStatus.threadCount}
+              charLimit={characterStatus.charLimit}
             />
           </div>
         </div>

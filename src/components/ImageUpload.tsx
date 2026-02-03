@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useState } from 'react';
 
 interface ImageUploadProps {
@@ -66,6 +67,22 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
     [handleFile]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const item = Array.from(e.clipboardData.items).find((item) =>
+        item.type.startsWith('image/')
+      );
+      if (item) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleFile(file);
+        }
+      }
+    },
+    [handleFile]
+  );
+
   const handleRemove = useCallback(() => {
     onImageChange(undefined);
   }, [onImageChange]);
@@ -73,10 +90,13 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
   if (currentImage) {
     return (
       <div className="relative">
-        <img
+        <Image
           src={currentImage}
           alt="Upload preview"
+          width={400}
+          height={192}
           className="w-full h-40 sm:h-48 object-cover rounded-lg"
+          unoptimized
         />
         <button
           type="button"
@@ -106,7 +126,11 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
-      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer ${
+      onPaste={handlePaste}
+      tabIndex={0}
+      role="button"
+      aria-label="Upload image: click, drag and drop, or paste"
+      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
         isDragging
           ? 'border-blue-500 bg-blue-50'
           : 'border-gray-300 hover:border-gray-400 active:border-blue-400'
@@ -137,7 +161,7 @@ export default function ImageUpload({ onImageChange, currentImage }: ImageUpload
           <span className="font-medium text-blue-600 hover:text-blue-500">
             Tap to upload
           </span>{' '}
-          <span className="hidden sm:inline">or drag and drop</span>
+          <span className="hidden sm:inline">or drag and drop, or paste (Ctrl+V)</span>
         </p>
         <p className="mt-1 text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
       </label>

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { JobData, formatTwitterMessage, formatTelegramMessage, splitIntoThread } from '@/lib/utils';
 
 interface PostPreviewProps {
@@ -45,10 +46,13 @@ export default function PostPreview({ job }: PostPreviewProps) {
                     {tweet}
                   </p>
                   {index === 0 && job.image && (
-                    <img
+                    <Image
                       src={job.image}
                       alt="Preview"
+                      width={400}
+                      height={192}
                       className="mt-2 sm:mt-3 rounded-xl max-h-40 sm:max-h-48 object-cover w-full"
+                      unoptimized
                     />
                   )}
                 </div>
@@ -69,10 +73,13 @@ export default function PostPreview({ job }: PostPreviewProps) {
         <div className="p-3 sm:p-4 bg-[#E5DDD5]">
           <div className="bg-white rounded-lg p-2.5 sm:p-3 shadow-sm max-w-full sm:max-w-sm">
             {job.image && (
-              <img
+              <Image
                 src={job.image}
                 alt="Preview"
+                width={400}
+                height={128}
                 className="w-full h-28 sm:h-32 object-cover rounded-lg mb-2"
+                unoptimized
               />
             )}
             <div

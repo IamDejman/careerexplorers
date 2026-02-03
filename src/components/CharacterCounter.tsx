@@ -1,32 +1,34 @@
 'use client';
 
-import { X_CHAR_LIMIT } from '@/lib/utils';
-
 interface CharacterCounterProps {
   count: number;
   needsThread: boolean;
   threadCount: number;
+  charLimit: number;
 }
 
 export default function CharacterCounter({
   count,
   needsThread,
   threadCount,
+  charLimit,
 }: CharacterCounterProps) {
-  const remaining = X_CHAR_LIMIT - count;
-  const percentage = Math.min((count / X_CHAR_LIMIT) * 100, 100);
+  const remaining = charLimit - count;
+  const percentage = Math.min((count / charLimit) * 100, 100);
+  const warningThreshold = charLimit <= 280 ? 20 : 500; // Scale warning for premium
+  const cautionThreshold = charLimit <= 280 ? 50 : 1000;
 
   const getColorClass = () => {
-    if (count > X_CHAR_LIMIT) return 'text-blue-500';
-    if (remaining <= 20) return 'text-red-500';
-    if (remaining <= 50) return 'text-yellow-500';
+    if (count > charLimit) return 'text-blue-500';
+    if (remaining <= warningThreshold) return 'text-red-500';
+    if (remaining <= cautionThreshold) return 'text-yellow-500';
     return 'text-gray-500';
   };
 
   const getProgressColor = () => {
-    if (count > X_CHAR_LIMIT) return 'bg-blue-500';
-    if (remaining <= 20) return 'bg-red-500';
-    if (remaining <= 50) return 'bg-yellow-500';
+    if (count > charLimit) return 'bg-blue-500';
+    if (remaining <= warningThreshold) return 'bg-red-500';
+    if (remaining <= cautionThreshold) return 'bg-yellow-500';
     return 'bg-green-500';
   };
 
@@ -42,9 +44,9 @@ export default function CharacterCounter({
 
       {/* Character count */}
       <div className={`text-xs sm:text-sm font-medium ${getColorClass()}`}>
-        {count > X_CHAR_LIMIT ? (
+        {count > charLimit ? (
           <span>
-            {count}/{X_CHAR_LIMIT}
+            {count}/{charLimit}
           </span>
         ) : (
           <span>{remaining} left</span>
