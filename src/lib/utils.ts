@@ -676,13 +676,13 @@ export function generateJobHashtags(job: ConciseJobData, trendingHashtags?: stri
   if (!jobTags.some((t) => /nigeriajobs/i.test(t))) jobTags.unshift('NigeriaJobs');
   if (!jobTags.some((t) => /hiring/i.test(t))) jobTags.unshift('Hiring');
 
-  // Merge: up to 2 trending (prefer job-relevant) + up to 3 job-specific = 5 max
+  // Merge: up to 3 trending (prefer job-relevant) + up to 2 job-specific = 5 max
   const seen = new Set<string>();
   const result: string[] = [];
 
   if (trendingHashtags && trendingHashtags.length > 0) {
     const jobRelevant = trendingHashtags.filter((t) => JOB_RELEVANT_KEYWORDS.test(t));
-    const toAdd = [...jobRelevant, ...trendingHashtags.filter((t) => !jobRelevant.includes(t))].slice(0, 2);
+    const toAdd = [...jobRelevant, ...trendingHashtags.filter((t) => !jobRelevant.includes(t))].slice(0, 3);
     for (const t of toAdd) {
       const normalized = t.replace(/^#/, '').trim();
       if (normalized && !seen.has(normalized)) {

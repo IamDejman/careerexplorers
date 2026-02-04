@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { postToTwitter, getTweetUrl } from '@/lib/twitter';
+import { postToTwitter, getTweetUrl, getTrendingHashtags } from '@/lib/twitter';
 import { postToTelegram } from '@/lib/telegram';
 
 interface QuickPostRequest {
@@ -27,9 +27,17 @@ export async function POST(request: NextRequest) {
       telegram?: { success: boolean; error?: string };
     } = {};
 
-    // Post to Twitter/X (always add hashtags for Twitter)
+    // Post to Twitter/X (always add hashtags for Twitter - up to 3 trending, fallback to defaults)
     if (platforms.includes('twitter')) {
-      const twitterMessage = `${message.trim()} #hiring #jobs #jobopening`;
+      const trending = await getTrendingHashtags();
+      const hashtagStr =
+        trending.length > 0
+          ? trending
+              .slice(0, 3)
+              .map((t) => `#${t.replace(/^#/, '').trim()}`)
+              .join(' ')
+          : '#hiring #jobs #jobopening';
+      const twitterMessage = `${message.trim()} ${hashtagStr}`;
       const twitterResult = await postToTwitter(twitterMessage, image);
       results.twitter = {
         success: twitterResult.success,
