@@ -8,6 +8,56 @@ interface QuickPostRequest {
   platforms: ('twitter' | 'telegram')[];
 }
 
+/** Build Twitter message with trending hashtags (up to 3) or fallback defaults */
+async function buildTwitterMessage(message: string): Promise<{
+  twitterMessage: string;
+  trendingHashtags: string[];
+}> {
+  const trending = await getTrendingHashtags();
+  const hashtagStr =
+    trending.length > 0
+      ? trending
+          .slice(0, 3)
+          .map((t) => `#${t.replace(/^#/, '').trim()}`)
+          .join(' ')
+      : '#hiring #jobs #jobopening';
+  return {
+    twitterMessage: `${message.trim()} ${hashtagStr}`,
+    trendingHashtags: trending.slice(0, 3),
+  };
+}
+
+/** GET /api/quick-post?message=... - Preview with trending hashtags */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const message = searchParams.get('message')?.trim() ?? '';
+
+    if (!message) {
+      return NextResponse.json(
+        { error: 'Message is required for preview' },
+        { status: 400 }
+      );
+    }
+
+    const { twitterMessage, trendingHashtags } = await buildTwitterMessage(message);
+
+    return NextResponse.json({
+      preview: {
+        twitterMessage,
+        telegramMessage: message,
+        trendingHashtags,
+      },
+    });
+  } catch (error) {
+    console.error('Quick post preview error:', error);
+    return NextResponse.json(
+      { error: 'Failed to load preview' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: QuickPostRequest = await request.json();
@@ -29,15 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Post to Twitter/X (always add hashtags for Twitter - up to 3 trending, fallback to defaults)
     if (platforms.includes('twitter')) {
-      const trending = await getTrendingHashtags();
-      const hashtagStr =
-        trending.length > 0
-          ? trending
-              .slice(0, 3)
-              .map((t) => `#${t.replace(/^#/, '').trim()}`)
-              .join(' ')
-          : '#hiring #jobs #jobopening';
-      const twitterMessage = `${message.trim()} ${hashtagStr}`;
+      const { twitterMessage } = await buildTwitterMessage(message);
       const twitterResult = await postToTwitter(twitterMessage, image);
       results.twitter = {
         success: twitterResult.success,
