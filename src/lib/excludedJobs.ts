@@ -8,6 +8,7 @@ export const EXCLUDED_JOB_TITLES: string[] = [
   'Nanny',
   'Cook',
   'Security',
+  'Van',
 ];
 
 export function isJobExcluded(title: string): boolean {
